@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>de.mahagst.risingworld</groupId>
+  <artifactId>rw-egg-alarm</artifactId>
+  <version>0.0.1</version>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>25</maven.compiler.source>
+    <maven.compiler.target>25</maven.compiler.target>
+    <rw.plugin.api.version>0.9.3.2</rw.plugin.api.version>
+  </properties>
+
+  <dependencies>
+    <!-- provided: install once via .\_tools\bootstrap-libs.ps1 -->
+    <dependency>
+      <groupId>net.rising-world</groupId>
+      <artifactId>plugin-api</artifactId>
+      <version>${rw.plugin.api.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>EggAlarm</finalName>
+  </build>
+
+</project>
