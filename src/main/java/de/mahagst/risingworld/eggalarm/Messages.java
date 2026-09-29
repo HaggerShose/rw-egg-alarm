@@ -16,12 +16,15 @@ public final class Messages {
 	public enum Key {
 		MENU_UNLINK,
 		MENU_SOUND,
+		MENU_RANGE,
 		MENU_TEST,
 		MENU_LINK,
 		MENU_RELINK,
 		MENU_BACK,
 		SOUND_SAVE_FAILED,
 		SOUND_SET,
+		RANGE_SAVE_FAILED,
+		RANGE_SET,
 		NO_DEVICE,
 		LINK_FAILED,
 		LINKED,
@@ -40,12 +43,15 @@ public final class Messages {
 	static {
 		put(Key.MENU_UNLINK, "Unlink", "Trennen");
 		put(Key.MENU_SOUND, "Sound", "Sound");
+		put(Key.MENU_RANGE, "Range", "Reichweite");
 		put(Key.MENU_TEST, "TEST", "TEST");
 		put(Key.MENU_LINK, "Link", "Verknüpfen");
 		put(Key.MENU_RELINK, "Relink", "Neu verknüpfen");
 		put(Key.MENU_BACK, "Back", "Zurück");
 		put(Key.SOUND_SAVE_FAILED, "Failed to save sound.", "Sound speichern fehlgeschlagen.");
 		put(Key.SOUND_SET, "Sound: {0}", "Sound: {0}");
+		put(Key.RANGE_SAVE_FAILED, "Failed to save range.", "Reichweite speichern fehlgeschlagen.");
+		put(Key.RANGE_SET, "Range: {0}", "Reichweite: {0}");
 		put(Key.NO_DEVICE,
 				"No furnace, grill, oven, or skewer within 10 m.",
 				"Kein Ofen, Grill, Backofen oder Spieß in 10 m.");

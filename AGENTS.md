@@ -11,17 +11,20 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 ```text
 Ctrl+O on a persistent rainbow egg (crosshair ray, 3 m)
   unlinked: anyone -> Verknuepfen + Neu verknuepfen
-  linked: owner uid or admin only -> Trennen + Sound + TEST
+  linked: owner uid or admin only -> Trennen + Sound + Range + TEST
 Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 10 m
   skewer is object name skewer, type Grill
   owner_uid = the player who links (not the placer)
   one egg <-> one device (a new link drops the previous egg on that device)
-  default sound_id = 1
+  default sound_id = 1, default max_distance = 64
 Neu verknuepfen: on click, nearest owned orphan within 10 m (egg missing at stored pose)
-  attach that link to this egg (keep device, owner, sound); else chat error
+  attach that link to this egg (keep device, owner, sound, range); else chat error
 Sound (linked only): submenu of filled slots 1..7 (display name; current marked with *)
   opens after a short delay so the closing main menu does not dismiss it
   pick -> persist sound_id + one preview at the egg
+  Zurueck -> main menu again (same delay)
+Range (linked only): submenu 32 / 64 / 128 (current marked with *)
+  pick -> persist max_distance + one preview; min distance stays 5
   Zurueck -> main menu again (same delay)
 ItemTransformEvent on that device (cancelled / non-meta ignored)
   -> RAM device key -> one-shot 3D sound at the egg (live pose, else stored xyz)
@@ -74,10 +77,11 @@ egg_links:
   device_object_id, device_cx, device_cy, device_cz  UNIQUE
   owner_uid
   sound_id
+  max_distance
   created_at
 ```
 
-RAM: egg key, device key, and session global id. Enable loads every row into RAM and rebinds `eggGlobalId` when the egg is already loaded. No deletes on enable (missing device or egg stays until unlink, relink, or a later GC). SQLite only on enable load and on link / unlink / relink / sound change. Mid-session orphan (egg picked up): Neu verknuepfen near the device.
+RAM: egg key, device key, and session global id. Enable loads every row into RAM and rebinds `eggGlobalId` when the egg is already loaded. No deletes on enable (missing device or egg stays until unlink, relink, or a later GC). SQLite only on enable load and on link / unlink / relink / sound change / range change. Mid-session orphan (egg picked up): Neu verknuepfen near the device.
 
 Owner gate: linked egg opens only when `player.getUID()` equals `owner_uid` or `player.isAdmin()`. Unlinked eggs stay open to everyone.
 
@@ -93,7 +97,7 @@ Filename: `NN_DisplayName.ext` or `NN.ext` (ogg/wav/mp3/flac). Slot is the integ
 
 DB stores the slot id, never a file path. Do not stream short effects.
 
-`playAt` plays for every connected, spawned player within max distance. Defaults until tuned: volume `1`, pitch `1`, min distance `5`, max distance `40`.
+`playAt` plays for every connected, spawned player within the link's `max_distance` (32, 64, or 128; default 64). Volume `1`, pitch `1`, min distance `5` (full volume nearby; does not scale with hear range).
 
 ## Phases
 

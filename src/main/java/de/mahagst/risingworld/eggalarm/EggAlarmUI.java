@@ -22,7 +22,7 @@ public class EggAlarmUI {
 	 * Wait before the next radial menu. Opening one inside the previous
 	 * selection callback gets closed by the client as it dismisses the old menu.
 	 */
-	private static final float MENU_SWAP_DELAY = 0.25f;
+	private static final float MENU_SWAP_DELAY = 0.12f;
 
 	private final Plugin plugin;
 	private final EggAlarmService service;
@@ -75,7 +75,7 @@ public class EggAlarmUI {
 	}
 
 	/**
-	 * Linked (owner / admin): Trennen, Sound, TEST.
+	 * Linked (owner / admin): Trennen, Sound, Range, TEST.
 	 * Unlinked: Verknüpfen and Neu verknüpfen (orphan check happens on click).
 	 */
 	public void showEggMenu(Player player, WorldItem egg, boolean linked) {
@@ -92,6 +92,9 @@ public class EggAlarmUI {
 			icons.add(eggIcon);
 			actions.add(EggAlarmService.MenuAction.SOUNDS);
 			labels.add(Messages.get(player, Messages.Key.MENU_SOUND));
+			icons.add(eggIcon);
+			actions.add(EggAlarmService.MenuAction.RANGE);
+			labels.add(Messages.get(player, Messages.Key.MENU_RANGE));
 			icons.add(eggIcon);
 			actions.add(EggAlarmService.MenuAction.TEST);
 			labels.add(Messages.get(player, Messages.Key.MENU_TEST));
@@ -169,6 +172,53 @@ public class EggAlarmUI {
 						return;
 					}
 					service.setSound(player, eggId, slotIds[selection]);
+				});
+			});
+		});
+	}
+
+	/**
+	 * Hear radii 32 / 64 / 128 plus Zurueck. The current value is marked with {@code *}.
+	 * Zurueck reopens the linked egg menu after {@link #MENU_SWAP_DELAY}.
+	 */
+	public void showRangeMenu(Player player, WorldItem egg, int currentDistance) {
+		if (closed || eggIcon == null) {
+			return;
+		}
+		long eggId = egg.getGlobalID();
+		int[] ranges = { 32, 64, 128 };
+		int back = ranges.length;
+		TextureAsset[] icons = new TextureAsset[back + 1];
+		String[] labels = new String[back + 1];
+		for (int i = 0; i < back; i++) {
+			String label = Integer.toString(ranges[i]);
+			labels[i] = ranges[i] == currentDistance ? label + " *" : label;
+			icons[i] = eggIcon;
+		}
+		labels[back] = Messages.get(player, Messages.Key.MENU_BACK);
+		icons[back] = eggIcon;
+		openAfterClose(() -> {
+			if (!player.isConnected()) {
+				return;
+			}
+			player.showRadialMenu(icons, labels, null, true, selection -> {
+				if (closed) {
+					return;
+				}
+				plugin.enqueue(() -> {
+					if (closed || selection == null || selection < 0 || selection > back) {
+						return;
+					}
+					if (selection == back) {
+						openAfterClose(() -> {
+							WorldItem again = World.getItem(eggId);
+							if (service.isTargetEgg(again)) {
+								showEggMenu(player, again, true);
+							}
+						});
+						return;
+					}
+					service.setRange(player, eggId, ranges[selection]);
 				});
 			});
 		});

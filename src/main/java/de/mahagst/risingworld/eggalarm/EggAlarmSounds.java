@@ -33,8 +33,8 @@ public class EggAlarmSounds {
 	private static final int MAX_SLOT = 7;
 	private static final float VOLUME = 1f;
 	private static final float PITCH = 1f;
+	/** Full-volume radius. Stays fixed; hear range is per link. */
 	private static final float MIN_DISTANCE = 5f;
-	private static final float MAX_DISTANCE = 40f;
 	private static final Pattern FILE_NAME = Pattern.compile(
 			"^(\\d{1,2})(?:_(.*))?\\.(ogg|wav|mp3|flac)$",
 			Pattern.CASE_INSENSITIVE);
@@ -102,16 +102,17 @@ public class EggAlarmSounds {
 
 	/**
 	 * Plays the slot as a one-shot 3D sound at {@code position} for every connected,
-	 * spawned player within {@link #MAX_DISTANCE}. Missing slot: log and return.
-	 * Each instance is tracked until {@link #unload()} so disable can stop it.
+	 * spawned player within {@code maxDistance}. Missing slot: log and return.
+	 * {@code minDistance} stays {@link #MIN_DISTANCE}. Each instance is tracked until
+	 * {@link #unload()} so disable can stop it.
 	 */
-	public void playAt(int slot, Vector3f position) {
+	public void playAt(int slot, Vector3f position, float maxDistance) {
 		Entry entry = bySlot.get(slot);
 		if (entry == null) {
 			System.out.println("[EggAlarm] No sound in slot " + slot);
 			return;
 		}
-		float maxDistSq = MAX_DISTANCE * MAX_DISTANCE;
+		float maxDistSq = maxDistance * maxDistance;
 		for (Player player : Server.getAllPlayers()) {
 			if (!player.isConnected() || !player.isSpawned()) {
 				continue;
@@ -119,7 +120,7 @@ public class EggAlarmSounds {
 			if (player.getPosition().distanceSquared(position) > maxDistSq) {
 				continue;
 			}
-			Sound sound = player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, MAX_DISTANCE, position);
+			Sound sound = player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, maxDistance, position);
 			if (sound != null) {
 				playing.add(sound);
 			}

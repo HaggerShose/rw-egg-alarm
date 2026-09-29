@@ -1,4 +1,5 @@
 # Ideas for the future
 
-- Einstellungen für die Hörweite des Alarms implementieren.
+- Möglichkeit eines Alarm-Loops implementieren.
+- Eventuell eine Methode die den Alarm beendet wenn man in die Nähe des Eis geht.
 - Garbage-collect für verwaiste Links implementieren.

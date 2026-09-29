@@ -30,6 +30,7 @@ final class EggAlarmRepository {
 				  device_cz INTEGER NOT NULL,
 				  owner_uid TEXT NOT NULL,
 				  sound_id INTEGER NOT NULL DEFAULT 1,
+				  max_distance INTEGER NOT NULL DEFAULT 64,
 				  created_at INTEGER NOT NULL,
 				  PRIMARY KEY (egg_creation_date, egg_x, egg_y, egg_z)
 				)
@@ -40,6 +41,7 @@ final class EggAlarmRepository {
 				""");
 		SqliteSchema.ensureColumn(database, "egg_links", "sound_id", "INTEGER NOT NULL DEFAULT 1");
 		SqliteSchema.ensureColumn(database, "egg_links", "owner_uid", "TEXT NOT NULL DEFAULT ''");
+		SqliteSchema.ensureColumn(database, "egg_links", "max_distance", "INTEGER NOT NULL DEFAULT 64");
 	}
 
 	/**
@@ -63,6 +65,7 @@ final class EggAlarmRepository {
 						result.getInt("device_cz"),
 						result.getString("owner_uid"),
 						result.getInt("sound_id"),
+						result.getInt("max_distance"),
 						result.getLong("created_at")));
 			}
 		} catch (SQLException e) {
@@ -78,8 +81,8 @@ final class EggAlarmRepository {
 				INSERT INTO egg_links (
 				  egg_creation_date, egg_x, egg_y, egg_z, egg_variant,
 				  device_object_id, device_cx, device_cy, device_cz,
-				  owner_uid, sound_id, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				  owner_uid, sound_id, max_distance, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(egg_creation_date, egg_x, egg_y, egg_z) DO UPDATE SET
 				  egg_variant = excluded.egg_variant,
 				  device_object_id = excluded.device_object_id,
@@ -87,7 +90,8 @@ final class EggAlarmRepository {
 				  device_cy = excluded.device_cy,
 				  device_cz = excluded.device_cz,
 				  owner_uid = excluded.owner_uid,
-				  sound_id = excluded.sound_id
+				  sound_id = excluded.sound_id,
+				  max_distance = excluded.max_distance
 				""";
 		try (var prep = database.getConnection().prepareStatement(sql)) {
 			bind(prep, link);
@@ -129,6 +133,7 @@ final class EggAlarmRepository {
 		prep.setInt(9, link.deviceCz);
 		prep.setString(10, link.ownerUid);
 		prep.setInt(11, link.soundId);
-		prep.setLong(12, link.createdAt);
+		prep.setInt(12, link.maxDistance);
+		prep.setLong(13, link.createdAt);
 	}
 }

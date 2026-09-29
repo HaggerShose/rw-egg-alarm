@@ -19,13 +19,15 @@ import net.risingworld.api.utils.Vector3f;
 
 /**
  * Look-up, egg links, radial menu gate, sound pick, and the transform alarm.
- * Hot path uses RAM maps; SQLite only on enable load and on link / unlink / relink / sound change.
+ * Hot path uses RAM maps; SQLite only on enable load and on link / unlink / relink / sound / range change.
  */
 public class EggAlarmService {
 	/** Item variant of the rainbow egg (definitions.db {@code items_variants}). */
 	private static final int RAINBOW_VARIANT = 3;
 	/** Default sound slot stored on a new link. */
 	private static final int DEFAULT_SOUND_ID = 1;
+	/** Default hear radius in meters. Allowed values: 32, 64, 128. */
+	private static final int DEFAULT_MAX_DISTANCE = 64;
 	/** Max look distance for Ctrl+O (world units / meters). */
 	private static final float LOOK_DISTANCE = 3f;
 	/** Nearest furnace / grill / oven search radius. */
@@ -127,7 +129,7 @@ public class EggAlarmService {
 		} else {
 			position = new Vector3f(link.x, link.y, link.z);
 		}
-		sounds.playAt(link.soundId, position);
+		sounds.playAt(link.soundId, position, link.maxDistance);
 		lastAlarmAt.put(key, now);
 	}
 
@@ -195,9 +197,14 @@ public class EggAlarmService {
 					ui.showSoundMenu(player, egg, link.soundId);
 				}
 			}
+			case RANGE -> {
+				if (link != null && ui != null) {
+					ui.showRangeMenu(player, egg, link.maxDistance);
+				}
+			}
 			case TEST -> {
 				if (link != null) {
-					sounds.playAt(link.soundId, egg.getPosition());
+					sounds.playAt(link.soundId, egg.getPosition(), link.maxDistance);
 				}
 			}
 		}
@@ -241,6 +248,7 @@ public class EggAlarmService {
 					link.deviceCz,
 					link.ownerUid,
 					slot,
+					link.maxDistance,
 					link.createdAt);
 			next.eggGlobalId = link.eggGlobalId != null ? link.eggGlobalId : egg.getGlobalID();
 			if (!repository.upsert(next)) {
@@ -250,8 +258,55 @@ public class EggAlarmService {
 			forget(link);
 			remember(next);
 		}
-		sounds.playAt(slot, egg.getPosition());
+		sounds.playAt(slot, egg.getPosition(), link.maxDistance);
 		player.sendTextMessage(Messages.format(player, Messages.Key.SOUND_SET, name));
+	}
+
+	/**
+	 * Persist hear radius on the linked egg and play the current sound once.
+	 * Same radius skips the write and still previews.
+	 */
+	void setRange(Player player, long eggId, int meters) {
+		if (closed) {
+			return;
+		}
+		int distance = EggLink.normalizeDistance(meters);
+		if (distance != meters) {
+			return;
+		}
+		WorldItem egg = World.getItem(eggId);
+		if (!isTargetEgg(egg)) {
+			return;
+		}
+		EggLink link = findLink(egg);
+		if (link == null || !canEdit(player, link)) {
+			return;
+		}
+		if (link.maxDistance != distance) {
+			EggLink next = new EggLink(
+					link.creationDate,
+					link.x,
+					link.y,
+					link.z,
+					link.variant,
+					link.deviceObjectId,
+					link.deviceCx,
+					link.deviceCy,
+					link.deviceCz,
+					link.ownerUid,
+					link.soundId,
+					distance,
+					link.createdAt);
+			next.eggGlobalId = link.eggGlobalId != null ? link.eggGlobalId : egg.getGlobalID();
+			if (!repository.upsert(next)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.RANGE_SAVE_FAILED));
+				return;
+			}
+			forget(link);
+			remember(next);
+		}
+		sounds.playAt(link.soundId, egg.getPosition(), distance);
+		player.sendTextMessage(Messages.format(player, Messages.Key.RANGE_SET, Integer.toString(distance)));
 	}
 
 	private void linkEgg(Player player, WorldItem egg) {
@@ -284,6 +339,7 @@ public class EggAlarmService {
 				device.getChunkPositionZ(),
 				existing != null ? existing.ownerUid : player.getUID(),
 				existing != null ? existing.soundId : DEFAULT_SOUND_ID,
+				existing != null ? existing.maxDistance : DEFAULT_MAX_DISTANCE,
 				existing != null ? existing.createdAt : now);
 		next.eggGlobalId = egg.getGlobalID();
 		if (!repository.upsert(next)) {
@@ -324,6 +380,7 @@ public class EggAlarmService {
 				orphan.deviceCz,
 				orphan.ownerUid,
 				orphan.soundId,
+				orphan.maxDistance,
 				orphan.createdAt);
 		next.eggGlobalId = egg.getGlobalID();
 		if (!repository.delete(orphan)) {
@@ -532,6 +589,7 @@ public class EggAlarmService {
 		UNLINK,
 		RELINK,
 		SOUNDS,
+		RANGE,
 		TEST
 	}
 

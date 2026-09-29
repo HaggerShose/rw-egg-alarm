@@ -15,6 +15,8 @@ final class EggLink {
 	final int deviceCz;
 	final String ownerUid;
 	final int soundId;
+	/** Hear radius in meters. Only 32, 64, or 128. */
+	final int maxDistance;
 	final long createdAt;
 	Long eggGlobalId;
 
@@ -30,6 +32,7 @@ final class EggLink {
 			int deviceCz,
 			String ownerUid,
 			int soundId,
+			int maxDistance,
 			long createdAt) {
 		this.creationDate = creationDate;
 		this.x = x;
@@ -42,6 +45,12 @@ final class EggLink {
 		this.deviceCz = deviceCz;
 		this.ownerUid = ownerUid;
 		this.soundId = soundId;
+		this.maxDistance = normalizeDistance(maxDistance);
 		this.createdAt = createdAt;
+	}
+
+	/** Allowed hear radii only; anything else becomes 64. */
+	static int normalizeDistance(int meters) {
+		return meters == 32 || meters == 64 || meters == 128 ? meters : 64;
 	}
 }
