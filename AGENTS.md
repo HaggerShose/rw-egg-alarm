@@ -46,6 +46,19 @@ Player chat and radial labels go through `Messages`. English by default; German 
 
 No second plugin. No OZ requirement. One world db: `getPath() + "/" + World.getName() + ".db"` (unsafe name chars become `_`). `foreign_keys=ON`, `journal_mode=DELETE`, WAL checkpoint on disable.
 
+## Disable
+
+Follow the workspace root [`AGENTS.md`](../AGENTS.md) (release what you touched; do not `SoundAsset.dispose()`). EggAlarm-specific:
+
+- Ctrl+O keys + this plugin's key-listen flag; `hideRadialMenu` for any open egg menu
+- kill pending menu-swap timers; closed flags on UI / service so look and menu callbacks no-op
+- stop tracked `Sound` instances (`stop(true)`) before clearing the catalog (a clip still playing crashes SP unload)
+- clear sound catalog map only (PluginAssetManager frees the assets)
+- egg icon from the item definition is never disposed
+- RAM link maps cleared; SQLite checkpoint + close
+
+A failed enable clears the sound catalog (and closes the DB, if it was opened) the same way.
+
 ## Identity and links
 
 `WorldItem.getGlobalID()` is session-only. Persist:
@@ -76,7 +89,7 @@ Filename: `NN_DisplayName.ext` or `NN.ext` (ogg/wav/mp3/flac). Slot is the integ
 
 - Built-in: `src/main/resources/sounds/` packed in the jar, `SoundAsset.loadFromPlugin`.
 - On first enable, if `plugins/EggAlarm/sounds/` does not exist, create it and copy the built-ins there. An existing folder is left alone.
-- Custom: that folder, `loadFromFile`. Same slot: custom replaces built-in.
+- Custom: that folder. Byte-identical seed copies are skipped (keep jar asset). Changed/extra files override via `SoundAsset.load(bytes)` -- not `loadFromFile` (file-source play crashed after SP unload).
 
 DB stores the slot id, never a file path. Do not stream short effects.
 

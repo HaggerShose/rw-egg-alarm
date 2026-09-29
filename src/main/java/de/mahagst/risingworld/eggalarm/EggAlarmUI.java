@@ -26,8 +26,11 @@ public class EggAlarmUI {
 
 	private final Plugin plugin;
 	private final EggAlarmService service;
+	private final List<Timer> pending = new ArrayList<>();
 	private TextureAsset eggIcon;
 	private boolean ready;
+	/** Set on disable so a late timer or menu callback does not touch the world. */
+	private boolean closed;
 
 	public EggAlarmUI(Plugin plugin, EggAlarmService service) {
 		this.plugin = plugin;
@@ -51,7 +54,24 @@ public class EggAlarmUI {
 
 	/** True after a successful {@link #load()}. */
 	public boolean isReady() {
-		return ready;
+		return ready && !closed;
+	}
+
+	/**
+	 * Kills menu-swap timers and ignores later callbacks.
+	 * The egg icon comes from the item definition and is not disposed.
+	 */
+	void shutdown() {
+		closed = true;
+		ready = false;
+		eggIcon = null;
+		List<Timer> timers = new ArrayList<>(pending);
+		pending.clear();
+		for (Timer timer : timers) {
+			if (!timer.isKilled()) {
+				timer.kill();
+			}
+		}
 	}
 
 	/**
@@ -59,6 +79,9 @@ public class EggAlarmUI {
 	 * Unlinked: Verknüpfen and Neu verknüpfen (orphan check happens on click).
 	 */
 	public void showEggMenu(Player player, WorldItem egg, boolean linked) {
+		if (closed || eggIcon == null) {
+			return;
+		}
 		long eggId = egg.getGlobalID();
 		List<EggAlarmService.MenuAction> actions = new ArrayList<>();
 		List<String> labels = new ArrayList<>();
@@ -88,7 +111,17 @@ public class EggAlarmUI {
 				labels.toArray(String[]::new),
 				null,
 				true,
-				selection -> plugin.enqueue(() -> service.handleMenu(player, eggId, selection, actionArray)));
+				selection -> {
+					if (closed) {
+						return;
+					}
+					plugin.enqueue(() -> {
+						if (closed) {
+							return;
+						}
+						service.handleMenu(player, eggId, selection, actionArray);
+					});
+				});
 	}
 
 	/**
@@ -97,6 +130,9 @@ public class EggAlarmUI {
 	 * so the previous radial can finish closing.
 	 */
 	public void showSoundMenu(Player player, WorldItem egg, int currentSoundId) {
+		if (closed || eggIcon == null) {
+			return;
+		}
 		long eggId = egg.getGlobalID();
 		List<EggAlarmSounds.SoundInfo> slots = service.filledSlots();
 		int back = slots.size();
@@ -115,26 +151,47 @@ public class EggAlarmUI {
 			if (!player.isConnected()) {
 				return;
 			}
-			player.showRadialMenu(icons, labels, null, true, selection -> plugin.enqueue(() -> {
-				if (selection == null || selection < 0 || selection > back) {
+			player.showRadialMenu(icons, labels, null, true, selection -> {
+				if (closed) {
 					return;
 				}
-				if (selection == back) {
-					openAfterClose(() -> {
-						WorldItem again = World.getItem(eggId);
-						if (service.isTargetEgg(again)) {
-							showEggMenu(player, again, true);
-						}
-					});
-					return;
-				}
-				service.setSound(player, eggId, slotIds[selection]);
-			}));
+				plugin.enqueue(() -> {
+					if (closed || selection == null || selection < 0 || selection > back) {
+						return;
+					}
+					if (selection == back) {
+						openAfterClose(() -> {
+							WorldItem again = World.getItem(eggId);
+							if (service.isTargetEgg(again)) {
+								showEggMenu(player, again, true);
+							}
+						});
+						return;
+					}
+					service.setSound(player, eggId, slotIds[selection]);
+				});
+			});
 		});
 	}
 
 	private void openAfterClose(Runnable open) {
-		Timer timer = new Timer(0f, MENU_SWAP_DELAY, 0, () -> plugin.enqueue(open));
+		if (closed) {
+			return;
+		}
+		Timer timer = new Timer(0f, MENU_SWAP_DELAY, 0, null);
+		timer.setTask(() -> {
+			pending.remove(timer);
+			if (closed) {
+				return;
+			}
+			plugin.enqueue(() -> {
+				if (closed) {
+					return;
+				}
+				open.run();
+			});
+		});
+		pending.add(timer);
 		timer.start();
 	}
 }

@@ -46,6 +46,8 @@ public class EggAlarmService {
 	private final EggAlarmRepository repository;
 	private final EggAlarmSounds sounds;
 	private EggAlarmUI ui;
+	/** Set on disable so in-flight look and menu callbacks return. */
+	private boolean closed;
 
 	private final Map<EggKey, EggLink> byEgg = new HashMap<>();
 	private final Map<DeviceKey, EggLink> byDevice = new HashMap<>();
@@ -61,6 +63,18 @@ public class EggAlarmService {
 
 	void attach(EggAlarmUI ui) {
 		this.ui = ui;
+	}
+
+	/**
+	 * Drops RAM links. In-flight look and menu callbacks see {@link #closed} and return.
+	 */
+	void close() {
+		closed = true;
+		byEgg.clear();
+		byDevice.clear();
+		byGlobalId.clear();
+		lastAlarmAt.clear();
+		ui = null;
 	}
 
 	/**
@@ -93,6 +107,9 @@ public class EggAlarmService {
 	 * @param cz device chunk z
 	 */
 	public void onItemTransformed(long objectId, int cx, int cy, int cz) {
+		if (closed) {
+			return;
+		}
 		DeviceKey key = new DeviceKey(objectId, cx, cy, cz);
 		EggLink link = byDevice.get(key);
 		if (link == null) {
@@ -130,7 +147,13 @@ public class EggAlarmService {
 	 * Single ray from the crosshair. Opens the menu for an unlinked egg, or for the owner / admin.
 	 */
 	public void tryOpenFromLook(Player player) {
+		if (closed || ui == null) {
+			return;
+		}
 		player.raycast(LOOK_DISTANCE, LOOK_MASK, false, result -> plugin.enqueue(() -> {
+			if (closed || ui == null) {
+				return;
+			}
 			WorldItem item = resolveLookedEgg(result);
 			if (item == null || ui == null) {
 				return;
@@ -145,6 +168,9 @@ public class EggAlarmService {
 
 	/** Handles a radial selection; {@code actions} matches the menu entry order. */
 	void handleMenu(Player player, long eggId, Integer selection, MenuAction[] actions) {
+		if (closed) {
+			return;
+		}
 		if (selection == null || selection < 0 || actions == null || selection >= actions.length) {
 			return;
 		}
@@ -187,6 +213,9 @@ public class EggAlarmService {
 	 * Same slot skips the write and still previews.
 	 */
 	void setSound(Player player, long eggId, int slot) {
+		if (closed) {
+			return;
+		}
 		WorldItem egg = World.getItem(eggId);
 		if (!isTargetEgg(egg)) {
 			return;

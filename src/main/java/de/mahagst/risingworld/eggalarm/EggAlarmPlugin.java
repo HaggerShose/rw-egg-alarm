@@ -21,18 +21,21 @@ import net.risingworld.api.utils.Key;
  */
 public class EggAlarmPlugin extends Plugin implements Listener {
 	private Database database;
+	private EggAlarmSounds sounds;
 	private EggAlarmUI ui;
 	private EggAlarmService service;
 	private boolean listening;
 
 	@Override
 	public void onEnable() {
-		EggAlarmSounds sounds = new EggAlarmSounds(this);
+		sounds = new EggAlarmSounds(this);
 		sounds.load();
 		String dbFile = worldDbFileName();
 		database = getSQLiteConnection(getPath() + "/" + dbFile);
 		if (database == null) {
 			System.out.println("[EggAlarm] Failed to open SQLite database: " + dbFile);
+			sounds.unload();
+			sounds = null;
 			return;
 		}
 		EggAlarmRepository repository = new EggAlarmRepository(database);
@@ -40,9 +43,12 @@ public class EggAlarmPlugin extends Plugin implements Listener {
 		service = new EggAlarmService(this, repository, sounds);
 		if (!service.loadLinks()) {
 			System.out.println("[EggAlarm] Failed to load egg links");
+			service.close();
+			service = null;
+			sounds.unload();
+			sounds = null;
 			database.close();
 			database = null;
-			service = null;
 			return;
 		}
 		ui = new EggAlarmUI(this, service);
@@ -56,14 +62,32 @@ public class EggAlarmPlugin extends Plugin implements Listener {
 		System.out.println("[EggAlarm] enabled (" + dbFile + ")");
 	}
 
+	/**
+	 * Releases everything this plugin touched. World unload stays in-process, so
+	 * timers, keys and menus must be dropped here. Sound assets stay for
+	 * PluginAssetManager -- do not dispose them in {@link EggAlarmSounds#unload()}.
+	 */
 	@Override
 	public void onDisable() {
-		if (listening) {
+		boolean wasListening = listening;
+		listening = false;
+		if (wasListening) {
 			unregisterEventListener(this);
-			listening = false;
+		}
+		if (ui != null) {
+			ui.shutdown();
+		}
+		if (service != null) {
+			service.close();
+			service = null;
 		}
 		for (Player player : Server.getAllPlayers()) {
-			unregisterHotkeys(player);
+			releasePlayer(player);
+		}
+		ui = null;
+		if (sounds != null) {
+			sounds.unload();
+			sounds = null;
 		}
 		if (database != null) {
 			database.execute("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -142,7 +166,16 @@ public class EggAlarmPlugin extends Plugin implements Listener {
 		player.setListenForKeyInput(true);
 	}
 
-	private static void unregisterHotkeys(Player player) {
+	/**
+	 * Hides our radial menu and drops this plugin's key registration.
+	 * Listen and keys are per plugin, so other plugins keep theirs.
+	 */
+	private static void releasePlayer(Player player) {
+		if (!player.isConnected()) {
+			return;
+		}
+		player.hideRadialMenu(true);
 		player.unregisterKeys(Key.O, Key.LeftCtrl, Key.RightCtrl);
+		player.setListenForKeyInput(false);
 	}
 }

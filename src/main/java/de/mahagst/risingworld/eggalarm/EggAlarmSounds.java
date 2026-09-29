@@ -3,6 +3,7 @@ package de.mahagst.risingworld.eggalarm;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -16,11 +17,15 @@ import net.risingworld.api.Plugin;
 import net.risingworld.api.Server;
 import net.risingworld.api.assets.SoundAsset;
 import net.risingworld.api.objects.Player;
+import net.risingworld.api.sounds.Sound;
 import net.risingworld.api.utils.Vector3f;
 
 /**
- * Sound catalog for slots 1..7. Built-ins come from the jar and are copied into the
- * plugin {@code sounds} folder on first enable. Files there override the same slot.
+ * Sound catalog for slots 1..7. Built-ins come from the jar via {@code loadFromPlugin}
+ * and are copied into the plugin {@code sounds} folder on first enable. Files there
+ * that differ from the jar override the slot ({@code SoundAsset.load(bytes)});
+ * identical seed copies keep the plugin asset (re-loading them via {@code loadFromFile}
+ * has crashed after SP world unload when playing).
  * Hot path only looks up the map.
  */
 public class EggAlarmSounds {
@@ -36,6 +41,8 @@ public class EggAlarmSounds {
 
 	private final Plugin plugin;
 	private final Map<Integer, Entry> bySlot = new HashMap<>();
+	/** Instances from {@link #playAt}. Stopped on unload so a still-playing clip does not outlive the asset reset. */
+	private final List<Sound> playing = new ArrayList<>();
 
 	public EggAlarmSounds(Plugin plugin) {
 		this.plugin = plugin;
@@ -46,7 +53,7 @@ public class EggAlarmSounds {
 	 * Custom wins on the same slot.
 	 */
 	public void load() {
-		bySlot.clear();
+		unload();
 		ensureSoundsFolder();
 		loadBuiltIns();
 		loadCustom();
@@ -57,6 +64,24 @@ public class EggAlarmSounds {
 		for (Entry entry : bySlot.values()) {
 			System.out.println("[EggAlarm] sound slot " + entry.slot + " = " + entry.displayName);
 		}
+	}
+
+	/**
+	 * Stops every tracked playback, then drops the catalog.
+	 * Do not {@link SoundAsset#dispose()} here -- PluginAssetManager frees plugin assets.
+	 * A clip still playing when that reset runs crashes singleplayer world unload.
+	 */
+	public void unload() {
+		stopPlaying();
+		bySlot.clear();
+	}
+
+	/** Immediate stop. Fade-out would still be playing when the asset manager resets. */
+	private void stopPlaying() {
+		for (Sound sound : playing) {
+			sound.stop(true);
+		}
+		playing.clear();
 	}
 
 	/**
@@ -78,6 +103,7 @@ public class EggAlarmSounds {
 	/**
 	 * Plays the slot as a one-shot 3D sound at {@code position} for every connected,
 	 * spawned player within {@link #MAX_DISTANCE}. Missing slot: log and return.
+	 * Each instance is tracked until {@link #unload()} so disable can stop it.
 	 */
 	public void playAt(int slot, Vector3f position) {
 		Entry entry = bySlot.get(slot);
@@ -93,7 +119,10 @@ public class EggAlarmSounds {
 			if (player.getPosition().distanceSquared(position) > maxDistSq) {
 				continue;
 			}
-			player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, MAX_DISTANCE, position);
+			Sound sound = player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, MAX_DISTANCE, position);
+			if (sound != null) {
+				playing.add(sound);
+			}
 		}
 	}
 
@@ -202,7 +231,59 @@ public class EggAlarmSounds {
 	}
 
 	private void loadCustom() {
-		loadDirectory(Path.of(plugin.getPath(), "sounds"), false);
+		Path dir = Path.of(plugin.getPath(), "sounds");
+		if (!Files.isDirectory(dir)) {
+			return;
+		}
+		try (var files = Files.list(dir)) {
+			files.filter(Files::isRegularFile).forEach(file -> {
+				String fileName = file.getFileName().toString();
+				Entry parsed = parse(fileName);
+				if (parsed == null) {
+					return;
+				}
+				// Seeded copies of jar sounds: keep loadFromPlugin. Reloading the same
+				// bytes via loadFromFile has crashed SP after world unload when playing.
+				if (matchesBuiltIn(fileName, file)) {
+					return;
+				}
+				try {
+					SoundAsset asset = SoundAsset.load(Files.readAllBytes(file));
+					put(parsed, asset);
+				} catch (IOException e) {
+					System.out.println("[EggAlarm] Could not load custom sound " + fileName + ": " + e.getMessage());
+				}
+			});
+		} catch (IOException e) {
+			System.out.println("[EggAlarm] Could not read sounds in " + dir + ": " + e.getMessage());
+		}
+	}
+
+	/**
+	 * True when {@code file} is byte-identical to the jar (or classes) resource
+	 * {@code sounds/<fileName>}.
+	 */
+	private boolean matchesBuiltIn(String fileName, Path file) {
+		try {
+			Path code = Path.of(EggAlarmSounds.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+			if (Files.isDirectory(code)) {
+				Path builtIn = code.resolve("sounds").resolve(fileName);
+				return Files.isRegularFile(builtIn) && Files.mismatch(builtIn, file) == -1L;
+			}
+			try (JarFile jar = new JarFile(code.toFile())) {
+				JarEntry entry = jar.getJarEntry("sounds/" + fileName);
+				if (entry == null) {
+					return false;
+				}
+				byte[] builtIn;
+				try (var in = jar.getInputStream(entry)) {
+					builtIn = in.readAllBytes();
+				}
+				return java.util.Arrays.equals(builtIn, Files.readAllBytes(file));
+			}
+		} catch (Exception e) {
+			return false;
+		}
 	}
 
 	private void loadDirectory(Path dir, boolean fromPlugin) {
