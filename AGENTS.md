@@ -12,7 +12,8 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 Ctrl+O on a persistent rainbow egg (crosshair ray, 3 m)
   unlinked: anyone -> Verknuepfen + Neu verknuepfen
   linked: owner uid or admin only -> Trennen + Sound + TEST
-Verknuepfen: nearest Furnace / Grill / Oven within 10 m
+Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 10 m
+  skewer is object name skewer, type Grill
   owner_uid = the player who links (not the placer)
   one egg <-> one device (a new link drops the previous egg on that device)
   default sound_id = 1
@@ -67,14 +68,15 @@ RAM: egg key, device key, and session global id. Enable loads every row into RAM
 
 Owner gate: linked egg opens only when `player.getUID()` equals `owner_uid` or `player.isAdmin()`. Unlinked eggs stay open to everyone.
 
-Device whitelist: `Objects.Type.Furnace`, `Grill`, `Oven`. Search radius 10 m from the egg.
+Device whitelist: `Objects.Type.Furnace`, `Grill`, `Oven`. The skewer is a `Grill` whose definition name is `skewer` (no separate type). Search radius 10 m from the egg. Link and relink chat names the device and its position (`Skewer` / `Spieß` when the name is `skewer`).
 
 ## Sounds
 
-Filename: `NN_DisplayName.ogg` (also wav/mp3/flac). Slot is the integer `1`..`7` (leading zeros ok). Other files are ignored. Display name is the text after the first `_`.
+Filename: `NN_DisplayName.ext` or `NN.ext` (ogg/wav/mp3/flac). Slot is the integer `1`..`7` (leading zeros ok). Other files are ignored. Display name is the text after the first `_`. A missing or blank name (`01.ogg`, `01_.ogg`) becomes `Sound N`.
 
 - Built-in: `src/main/resources/sounds/` packed in the jar, `SoundAsset.loadFromPlugin`.
-- Custom: `plugins/EggAlarm/sounds/`, `loadFromFile`. Same slot: custom replaces built-in.
+- On first enable, if `plugins/EggAlarm/sounds/` does not exist, create it and copy the built-ins there. An existing folder is left alone.
+- Custom: that folder, `loadFromFile`. Same slot: custom replaces built-in.
 
 DB stores the slot id, never a file path. Do not stream short effects.
 

@@ -4,7 +4,9 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 
+import net.risingworld.api.definitions.Objects;
 import net.risingworld.api.objects.Player;
+import net.risingworld.api.utils.Vector3f;
 
 /**
  * Player-facing chat and radial labels. English is the default;
@@ -27,6 +29,7 @@ public final class Messages {
 		NO_ORPHAN,
 		RELINK_FAILED,
 		RELINKED,
+		RELINKED_PLAIN,
 		UNLINK_FAILED,
 		UNLINKED
 	}
@@ -43,13 +46,20 @@ public final class Messages {
 		put(Key.MENU_BACK, "Back", "Zurück");
 		put(Key.SOUND_SAVE_FAILED, "Failed to save sound.", "Sound speichern fehlgeschlagen.");
 		put(Key.SOUND_SET, "Sound: {0}", "Sound: {0}");
-		put(Key.NO_DEVICE, "No furnace, grill, or oven within 10 m.", "Kein Ofen, Grill oder Backofen in 10 m.");
+		put(Key.NO_DEVICE,
+				"No furnace, grill, oven, or skewer within 10 m.",
+				"Kein Ofen, Grill, Backofen oder Spieß in 10 m.");
 		put(Key.LINK_FAILED, "Linking failed.", "Verknüpfen fehlgeschlagen.");
-		put(Key.LINKED, "Linked.", "Verknüpft.");
+		put(Key.LINKED,
+				"<color=#88ccff>Linked</color> to {0} at {1}.",
+				"<color=#88ccff>Verknüpft</color> mit {0} bei {1}.");
 		put(Key.ALREADY_LINKED, "Egg is already linked.", "Ei ist bereits verknüpft.");
 		put(Key.NO_ORPHAN, "No orphaned link within 10 m.", "Kein verwaister Link in 10 m.");
 		put(Key.RELINK_FAILED, "Relink failed.", "Neu verknüpfen fehlgeschlagen.");
-		put(Key.RELINKED, "Relinked.", "Neu verknüpft.");
+		put(Key.RELINKED,
+				"<color=#88ccff>Relinked</color> to {0} at {1}.",
+				"<color=#88ccff>Neu verknüpft</color> mit {0} bei {1}.");
+		put(Key.RELINKED_PLAIN, "Relinked.", "Neu verknüpft.");
 		put(Key.UNLINK_FAILED, "Unlink failed.", "Trennen fehlgeschlagen.");
 		put(Key.UNLINKED, "Unlinked.", "Getrennt.");
 	}
@@ -64,9 +74,50 @@ public final class Messages {
 		return text != null ? text : EN.get(key);
 	}
 
-	/** Same as {@link #get}, with {@code {0}} replaced by {@code arg}. */
-	public static String format(Player player, Key key, String arg) {
-		return get(player, key).replace("{0}", arg == null ? "" : arg);
+	/** Same as {@link #get}, replacing {@code {0}}, {@code {1}}, ... in order. */
+	public static String format(Player player, Key key, String... args) {
+		String text = get(player, key);
+		if (args == null) {
+			return text;
+		}
+		for (int i = 0; i < args.length; i++) {
+			text = text.replace("{" + i + "}", args[i] == null ? "" : args[i]);
+		}
+		return text;
+	}
+
+	/**
+	 * Success line for link / relink: device label plus world position.
+	 * Skewer is a {@link Objects.Type#Grill} whose definition name is {@code skewer}.
+	 */
+	public static String linkedTo(Player player, boolean relink, Objects.ObjectDefinition definition, Vector3f position) {
+		Key key = relink ? Key.RELINKED : Key.LINKED;
+		return format(player, key, deviceLabel(player, definition), coords(position));
+	}
+
+	private static String deviceLabel(Player player, Objects.ObjectDefinition definition) {
+		boolean de = german(player);
+		if (definition != null && "skewer".equalsIgnoreCase(definition.name)) {
+			return de ? "Spieß" : "Skewer";
+		}
+		Objects.Type type = definition == null ? null : definition.type;
+		if (type == Objects.Type.Furnace) {
+			return de ? "Ofen" : "Furnace";
+		}
+		if (type == Objects.Type.Oven) {
+			return de ? "Backofen" : "Oven";
+		}
+		if (type == Objects.Type.Grill) {
+			return "Grill";
+		}
+		return de ? "Gerät" : "device";
+	}
+
+	private static String coords(Vector3f position) {
+		if (position == null) {
+			return "?";
+		}
+		return String.format(Locale.US, "%.1f, %.1f, %.1f", position.x, position.y, position.z);
 	}
 
 	private static boolean german(Player player) {

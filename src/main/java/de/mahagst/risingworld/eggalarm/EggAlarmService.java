@@ -265,7 +265,7 @@ public class EggAlarmService {
 			forget(existing);
 		}
 		remember(next);
-		player.sendTextMessage(Messages.get(player, Messages.Key.LINKED));
+		player.sendTextMessage(Messages.linkedTo(player, false, device.getDefinition(), device.getWorldPosition()));
 	}
 
 	/**
@@ -307,7 +307,13 @@ public class EggAlarmService {
 			return;
 		}
 		remember(next);
-		player.sendTextMessage(Messages.get(player, Messages.Key.RELINKED));
+		ObjectElement device = World.getObject(
+				orphan.deviceObjectId, orphan.deviceCx, orphan.deviceCy, orphan.deviceCz);
+		if (isDevice(device)) {
+			player.sendTextMessage(Messages.linkedTo(player, true, device.getDefinition(), device.getWorldPosition()));
+		} else {
+			player.sendTextMessage(Messages.get(player, Messages.Key.RELINKED_PLAIN));
+		}
 	}
 
 	private void unlinkEgg(Player player, EggLink link) {
@@ -394,6 +400,7 @@ public class EggAlarmService {
 		return found;
 	}
 
+	/** Furnace, grill, oven, or the low-tech skewer ({@code Grill} named {@code skewer}). */
 	private static boolean isDevice(ObjectElement object) {
 		if (object == null || object.getDefinition() == null) {
 			return false;

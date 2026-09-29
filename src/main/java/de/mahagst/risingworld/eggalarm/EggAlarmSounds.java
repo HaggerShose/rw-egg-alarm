@@ -19,8 +19,9 @@ import net.risingworld.api.objects.Player;
 import net.risingworld.api.utils.Vector3f;
 
 /**
- * Sound catalog for slots 1..7. Built-ins come from the jar; files in the plugin
- * {@code sounds} folder override the same slot. Hot path only looks up the map.
+ * Sound catalog for slots 1..7. Built-ins come from the jar and are copied into the
+ * plugin {@code sounds} folder on first enable. Files there override the same slot.
+ * Hot path only looks up the map.
  */
 public class EggAlarmSounds {
 	private static final int MIN_SLOT = 1;
@@ -30,7 +31,7 @@ public class EggAlarmSounds {
 	private static final float MIN_DISTANCE = 5f;
 	private static final float MAX_DISTANCE = 40f;
 	private static final Pattern FILE_NAME = Pattern.compile(
-			"^(\\d{1,2})_(.+)\\.(ogg|wav|mp3|flac)$",
+			"^(\\d{1,2})(?:_(.*))?\\.(ogg|wav|mp3|flac)$",
 			Pattern.CASE_INSENSITIVE);
 
 	private final Plugin plugin;
@@ -40,9 +41,13 @@ public class EggAlarmSounds {
 		this.plugin = plugin;
 	}
 
-	/** Loads built-in jar sounds, then custom files (custom wins on the same slot). */
+	/**
+	 * Seeds {@code sounds/} once from the jar, then loads built-ins and custom files.
+	 * Custom wins on the same slot.
+	 */
 	public void load() {
 		bySlot.clear();
+		ensureSoundsFolder();
 		loadBuiltIns();
 		loadCustom();
 		if (bySlot.isEmpty()) {
@@ -89,6 +94,74 @@ public class EggAlarmSounds {
 				continue;
 			}
 			player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, MAX_DISTANCE, position);
+		}
+	}
+
+	/**
+	 * Creates {@code plugins/EggAlarm/sounds} and copies built-ins into it when the folder
+	 * does not exist yet. An existing folder is left alone, even if empty.
+	 */
+	private void ensureSoundsFolder() {
+		Path dest = Path.of(plugin.getPath(), "sounds");
+		if (Files.isDirectory(dest)) {
+			return;
+		}
+		try {
+			Files.createDirectories(dest);
+		} catch (IOException e) {
+			System.out.println("[EggAlarm] Could not create sounds folder: " + e.getMessage());
+			return;
+		}
+		try {
+			Path code = Path.of(EggAlarmSounds.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+			if (Files.isDirectory(code)) {
+				copyDirectorySounds(code.resolve("sounds"), dest);
+			} else {
+				copyJarSounds(code, dest);
+			}
+		} catch (Exception e) {
+			System.out.println("[EggAlarm] Could not seed sounds folder: " + e.getMessage());
+		}
+	}
+
+	private void copyJarSounds(Path jarPath, Path dest) throws IOException {
+		try (JarFile jar = new JarFile(jarPath.toFile())) {
+			var entries = jar.entries();
+			while (entries.hasMoreElements()) {
+				JarEntry jarEntry = entries.nextElement();
+				String name = jarEntry.getName();
+				if (jarEntry.isDirectory() || !name.startsWith("sounds/")) {
+					continue;
+				}
+				String fileName = name.substring("sounds/".length());
+				if (fileName.isEmpty() || fileName.indexOf('/') >= 0 || parse(fileName) == null) {
+					continue;
+				}
+				try (var in = jar.getInputStream(jarEntry)) {
+					Files.copy(in, dest.resolve(fileName));
+				} catch (IOException e) {
+					System.out.println("[EggAlarm] Could not copy sound " + fileName + ": " + e.getMessage());
+				}
+			}
+		}
+	}
+
+	private void copyDirectorySounds(Path src, Path dest) throws IOException {
+		if (!Files.isDirectory(src)) {
+			return;
+		}
+		try (var files = Files.list(src)) {
+			files.filter(Files::isRegularFile).forEach(file -> {
+				String fileName = file.getFileName().toString();
+				if (parse(fileName) == null) {
+					return;
+				}
+				try {
+					Files.copy(file, dest.resolve(fileName));
+				} catch (IOException e) {
+					System.out.println("[EggAlarm] Could not copy sound " + fileName + ": " + e.getMessage());
+				}
+			});
 		}
 	}
 
@@ -160,7 +233,10 @@ public class EggAlarmSounds {
 		bySlot.put(parsed.slot, new Entry(parsed.slot, parsed.displayName, asset));
 	}
 
-	/** {@code NN_DisplayName.ext} with slot 1..7, or null if the name does not match. */
+	/**
+	 * {@code NN_DisplayName.ext} or {@code NN.ext} / {@code NN_.ext} with slot 1..7.
+	 * A missing or blank name becomes {@code Sound N}.
+	 */
 	private static Entry parse(String fileName) {
 		Matcher matcher = FILE_NAME.matcher(fileName);
 		if (!matcher.matches()) {
@@ -170,10 +246,8 @@ public class EggAlarmSounds {
 		if (slot < MIN_SLOT || slot > MAX_SLOT) {
 			return null;
 		}
-		String displayName = matcher.group(2);
-		if (displayName.isBlank()) {
-			return null;
-		}
+		String raw = matcher.group(2);
+		String displayName = raw == null || raw.isBlank() ? "Sound " + slot : raw;
 		return new Entry(slot, displayName, null);
 	}
 
