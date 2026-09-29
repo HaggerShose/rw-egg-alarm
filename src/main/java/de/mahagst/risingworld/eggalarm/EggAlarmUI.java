@@ -56,9 +56,9 @@ public class EggAlarmUI {
 
 	/**
 	 * Linked (owner / admin): Trennen, Sound, TEST.
-	 * Unlinked: Verknüpfen, optional Neu verknüpfen when an owned orphan device is nearby.
+	 * Unlinked: Verknüpfen and Neu verknüpfen (orphan check happens on click).
 	 */
-	public void showEggMenu(Player player, WorldItem egg, boolean linked, boolean canRelink) {
+	public void showEggMenu(Player player, WorldItem egg, boolean linked) {
 		long eggId = egg.getGlobalID();
 		List<EggAlarmService.MenuAction> actions = new ArrayList<>();
 		List<String> labels = new ArrayList<>();
@@ -77,11 +77,9 @@ public class EggAlarmUI {
 			actions.add(EggAlarmService.MenuAction.LINK);
 			labels.add("Verknüpfen");
 			icons.add(eggIcon);
-			if (canRelink) {
-				actions.add(EggAlarmService.MenuAction.RELINK);
-				labels.add("Neu verknüpfen");
-				icons.add(eggIcon);
-			}
+			actions.add(EggAlarmService.MenuAction.RELINK);
+			labels.add("Neu verknüpfen");
+			icons.add(eggIcon);
 		}
 
 		EggAlarmService.MenuAction[] actionArray = actions.toArray(EggAlarmService.MenuAction[]::new);
@@ -125,7 +123,7 @@ public class EggAlarmUI {
 					openAfterClose(() -> {
 						WorldItem again = World.getItem(eggId);
 						if (service.isTargetEgg(again)) {
-							showEggMenu(player, again, true, false);
+							showEggMenu(player, again, true);
 						}
 					});
 					return;

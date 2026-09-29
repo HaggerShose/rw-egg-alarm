@@ -64,7 +64,8 @@ public class EggAlarmService {
 	}
 
 	/**
-	 * Load rows into RAM, drop links whose device or egg is gone in a loaded chunk.
+	 * Load every row into RAM. Binds a session egg id when the egg is already
+	 * loaded; missing eggs and devices stay. No deletes on enable.
 	 *
 	 * @return false if the query itself failed
 	 */
@@ -74,13 +75,7 @@ public class EggAlarmService {
 			return false;
 		}
 		for (EggLink link : rows) {
-			if (!devicePresent(link) || !rebindEgg(link)) {
-				if (!repository.delete(link)) {
-					System.out.println("[EggAlarm] Failed to drop stale link at "
-							+ link.x + " " + link.y + " " + link.z);
-				}
-				continue;
-			}
+			rebindEgg(link);
 			remember(link);
 		}
 		return true;
@@ -144,8 +139,7 @@ public class EggAlarmService {
 			if (link != null && !canEdit(player, link)) {
 				return;
 			}
-			boolean canRelink = link == null && nearestOrphan(player, item.getPosition()) != null;
-			ui.showEggMenu(player, item, link != null, canRelink);
+			ui.showEggMenu(player, item, link != null);
 		}));
 	}
 
@@ -342,7 +336,7 @@ public class EggAlarmService {
 	}
 
 	/**
-	 * Nearest owned orphan within {@link #LINK_RADIUS}: device present, egg missing in a loaded chunk.
+	 * Nearest owned orphan within {@link #LINK_RADIUS}: linked device nearby, egg missing at the stored pose.
 	 */
 	private EggLink nearestOrphan(Player player, Vector3f origin) {
 		EggLink best = null;
@@ -383,9 +377,6 @@ public class EggAlarmService {
 		for (int cx = chunk.x - span; cx <= chunk.x + span; cx++) {
 			for (int cz = chunk.z - span; cz <= chunk.z + span; cz++) {
 				Chunk area = World.getChunk(cx, cz);
-				if (area == null) {
-					continue;
-				}
 				ObjectElement[] objects = area.getAllObjects();
 				if (objects == null) {
 					continue;
@@ -413,39 +404,17 @@ public class EggAlarmService {
 				|| type == Objects.Type.Oven;
 	}
 
-	/** True when the egg chunk is loaded and no matching egg remains at the stored pose. */
+	/** True when no matching egg remains at the stored pose. Used only on relink click. */
 	private boolean isOrphan(EggLink link) {
-		Vector3f pos = new Vector3f(link.x, link.y, link.z);
-		var chunk = Utils.ChunkUtils.getChunkPosition(pos);
-		if (World.getChunk(chunk.x, chunk.z) == null) {
-			return false;
-		}
 		return findEggAt(link) == null;
 	}
 
-	/** False when the chunk is loaded and the device is missing or no longer a cooking station. */
-	private boolean devicePresent(EggLink link) {
-		ObjectElement object = World.getObject(
-				link.deviceObjectId, link.deviceCx, link.deviceCy, link.deviceCz);
-		if (isDevice(object)) {
-			return true;
-		}
-		return object == null && World.getChunk(link.deviceCx, link.deviceCz) == null;
-	}
-
-	/**
-	 * Binds the session item id when the egg is loaded nearby.
-	 *
-	 * @return false when the chunk is loaded and no matching egg remains
-	 */
-	private boolean rebindEgg(EggLink link) {
+	/** Binds the session item id when the egg is already loaded nearby. */
+	private void rebindEgg(EggLink link) {
 		WorldItem item = findEggAt(link);
 		if (item != null) {
 			link.eggGlobalId = item.getGlobalID();
-			return true;
 		}
-		var chunk = Utils.ChunkUtils.getChunkPosition(link.x, link.y, link.z);
-		return World.getChunk(chunk.x, chunk.z) == null;
 	}
 
 	private WorldItem findEggAt(EggLink link) {

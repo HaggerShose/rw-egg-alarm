@@ -10,14 +10,14 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 
 ```text
 Ctrl+O on a persistent rainbow egg (crosshair ray, 3 m)
-  unlinked: anyone -> Verknuepfen
-    + Neu verknuepfen when an owned orphan device is within 10 m (egg missing, link remains)
+  unlinked: anyone -> Verknuepfen + Neu verknuepfen
   linked: owner uid or admin only -> Trennen + Sound + TEST
 Verknuepfen: nearest Furnace / Grill / Oven within 10 m
   owner_uid = the player who links (not the placer)
   one egg <-> one device (a new link drops the previous egg on that device)
   default sound_id = 1
-Neu verknuepfen: attach nearest owned orphan link to this egg (keep device, owner, sound)
+Neu verknuepfen: on click, nearest owned orphan within 10 m (egg missing at stored pose)
+  attach that link to this egg (keep device, owner, sound); else chat error
 Sound (linked only): submenu of filled slots 1..7 (display name; current marked with *)
   opens after a short delay so the closing main menu does not dismiss it
   pick -> persist sound_id + one preview at the egg
@@ -60,7 +60,7 @@ egg_links:
   created_at
 ```
 
-RAM: egg key, device key, and session global id. SQLite only on enable load and on link / unlink / relink / sound change. Missing device in a loaded chunk, or missing egg in a loaded chunk: drop the row on load. Unloaded chunk: keep the row. Mid-session orphan (egg picked up): use Neu verknuepfen near the device.
+RAM: egg key, device key, and session global id. Enable loads every row into RAM and rebinds `eggGlobalId` when the egg is already loaded. No deletes on enable (missing device or egg stays until unlink, relink, or a later GC). SQLite only on enable load and on link / unlink / relink / sound change. Mid-session orphan (egg picked up): Neu verknuepfen near the device.
 
 Owner gate: linked egg opens only when `player.getUID()` equals `owner_uid` or `player.isAdmin()`. Unlinked eggs stay open to everyone.
 
@@ -83,7 +83,7 @@ DB stores the slot id, never a file path. Do not stream short effects.
 2. `egg_links`, link / unlink, owner on link, rebind after restart. Done.
 3. `ItemTransformEvent` -> device key -> alarm using `sound_id`. Done.
 4. Sound-picker radial (filled slots only), persist `sound_id`. Done.
-5. Broader broken-link cleanup beyond load-time drop / Neu verknuepfen.
+5. Garbage-collect broken links later. Startup no longer drops missing eggs or devices.
 
 ## Not in scope
 
