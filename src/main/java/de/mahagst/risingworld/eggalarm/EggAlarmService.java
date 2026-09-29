@@ -215,20 +215,20 @@ public class EggAlarmService {
 					link.createdAt);
 			next.eggGlobalId = link.eggGlobalId != null ? link.eggGlobalId : egg.getGlobalID();
 			if (!repository.upsert(next)) {
-				player.sendTextMessage("Sound speichern fehlgeschlagen.");
+				player.sendTextMessage(Messages.get(player, Messages.Key.SOUND_SAVE_FAILED));
 				return;
 			}
 			forget(link);
 			remember(next);
 		}
 		sounds.playAt(slot, egg.getPosition());
-		player.sendTextMessage("Sound: " + name);
+		player.sendTextMessage(Messages.format(player, Messages.Key.SOUND_SET, name));
 	}
 
 	private void linkEgg(Player player, WorldItem egg) {
 		ObjectElement device = nearestDevice(egg.getPosition());
 		if (device == null) {
-			player.sendTextMessage("Kein Ofen, Grill oder Backofen in 10 m.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.NO_DEVICE));
 			return;
 		}
 		EggLink existing = findLink(egg);
@@ -236,7 +236,7 @@ public class EggAlarmService {
 		EggLink other = byDevice.get(deviceKey);
 		if (other != null && !sameEgg(other, egg)) {
 			if (!repository.delete(other)) {
-				player.sendTextMessage("Verknüpfen fehlgeschlagen.");
+				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
 				return;
 			}
 			forget(other);
@@ -258,14 +258,14 @@ public class EggAlarmService {
 				existing != null ? existing.createdAt : now);
 		next.eggGlobalId = egg.getGlobalID();
 		if (!repository.upsert(next)) {
-			player.sendTextMessage("Verknüpfen fehlgeschlagen.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
 			return;
 		}
 		if (existing != null) {
 			forget(existing);
 		}
 		remember(next);
-		player.sendTextMessage("Verknüpft.");
+		player.sendTextMessage(Messages.get(player, Messages.Key.LINKED));
 	}
 
 	/**
@@ -274,12 +274,12 @@ public class EggAlarmService {
 	 */
 	private void relinkEgg(Player player, WorldItem egg) {
 		if (findLink(egg) != null) {
-			player.sendTextMessage("Ei ist bereits verknüpft.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.ALREADY_LINKED));
 			return;
 		}
 		EggLink orphan = nearestOrphan(player, egg.getPosition());
 		if (orphan == null) {
-			player.sendTextMessage("Kein verwaister Link in 10 m.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.NO_ORPHAN));
 			return;
 		}
 		Vector3f pos = egg.getPosition();
@@ -298,25 +298,25 @@ public class EggAlarmService {
 				orphan.createdAt);
 		next.eggGlobalId = egg.getGlobalID();
 		if (!repository.delete(orphan)) {
-			player.sendTextMessage("Neu verknüpfen fehlgeschlagen.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.RELINK_FAILED));
 			return;
 		}
 		forget(orphan);
 		if (!repository.upsert(next)) {
-			player.sendTextMessage("Neu verknüpfen fehlgeschlagen.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.RELINK_FAILED));
 			return;
 		}
 		remember(next);
-		player.sendTextMessage("Neu verknüpft.");
+		player.sendTextMessage(Messages.get(player, Messages.Key.RELINKED));
 	}
 
 	private void unlinkEgg(Player player, EggLink link) {
 		if (!repository.delete(link)) {
-			player.sendTextMessage("Trennen fehlgeschlagen.");
+			player.sendTextMessage(Messages.get(player, Messages.Key.UNLINK_FAILED));
 			return;
 		}
 		forget(link);
-		player.sendTextMessage("Getrennt.");
+		player.sendTextMessage(Messages.get(player, Messages.Key.UNLINKED));
 	}
 
 	private boolean canEdit(Player player, EggLink link) {

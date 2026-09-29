@@ -29,6 +29,8 @@ ItemTransformEvent on that device (cancelled / non-meta ignored)
 F pickup stays vanilla. No long-press.
 ```
 
+Player chat and radial labels go through `Messages`. English by default; German when `getLanguage()` (else `getSystemLanguage()`) starts with `de`. Sound file display names stay as stored. Server logs stay English.
+
 ## Layout
 
 | File                 | Role                                                     |
@@ -36,6 +38,7 @@ F pickup stays vanilla. No long-press.
 | `EggAlarmPlugin`     | Lifecycle, world SQLite, Ctrl+O                          |
 | `EggAlarmService`    | Look, links, owner gate, nearest device, transform alarm |
 | `EggAlarmUI`         | Radial menus                                             |
+| `Messages`           | Player chat and radial labels (EN default, DE if `de`)   |
 | `EggAlarmSounds`     | Catalog + `playAt`                                       |
 | `EggAlarmRepository` | SQLite only                                              |
 | `EggLink`            | Link row + session item id                               |

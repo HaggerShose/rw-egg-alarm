@@ -65,20 +65,20 @@ public class EggAlarmUI {
 		List<TextureAsset> icons = new ArrayList<>();
 		if (linked) {
 			actions.add(EggAlarmService.MenuAction.UNLINK);
-			labels.add("Trennen");
+			labels.add(Messages.get(player, Messages.Key.MENU_UNLINK));
 			icons.add(eggIcon);
 			actions.add(EggAlarmService.MenuAction.SOUNDS);
-			labels.add("Sound");
+			labels.add(Messages.get(player, Messages.Key.MENU_SOUND));
 			icons.add(eggIcon);
 			actions.add(EggAlarmService.MenuAction.TEST);
-			labels.add("TEST");
+			labels.add(Messages.get(player, Messages.Key.MENU_TEST));
 			icons.add(eggIcon);
 		} else {
 			actions.add(EggAlarmService.MenuAction.LINK);
-			labels.add("Verknüpfen");
+			labels.add(Messages.get(player, Messages.Key.MENU_LINK));
 			icons.add(eggIcon);
 			actions.add(EggAlarmService.MenuAction.RELINK);
-			labels.add("Neu verknüpfen");
+			labels.add(Messages.get(player, Messages.Key.MENU_RELINK));
 			icons.add(eggIcon);
 		}
 
@@ -109,7 +109,7 @@ public class EggAlarmUI {
 			labels[i] = info.slot() == currentSoundId ? info.displayName() + " *" : info.displayName();
 			icons[i] = eggIcon;
 		}
-		labels[back] = "Zurück";
+		labels[back] = Messages.get(player, Messages.Key.MENU_BACK);
 		icons[back] = eggIcon;
 		openAfterClose(() -> {
 			if (!player.isConnected()) {
