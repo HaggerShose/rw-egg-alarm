@@ -30,7 +30,10 @@ import net.risingworld.api.utils.Vector3f;
  */
 public class EggAlarmSounds {
 	private static final int MIN_SLOT = 1;
-	private static final int MAX_SLOT = 7;
+	private static final int MAX_SLOT = 9;
+	/** Slots above this are hidden unless {@link #PRIVATE_SLOT_UID} opens the menu. */
+	private static final int PUBLIC_MAX_SLOT = 7;
+	private static final String PRIVATE_SLOT_UID = "76561198002368372";
 	private static final float VOLUME = 1f;
 	private static final float PITCH = 1f;
 	/** Full-volume radius. Stays fixed; hear range is per link. */
@@ -86,12 +89,20 @@ public class EggAlarmSounds {
 
 	/**
 	 * Loaded slots in ascending order. Empty slots are omitted.
+	 * Slots above {@link #PUBLIC_MAX_SLOT} only for {@link #PRIVATE_SLOT_UID}.
 	 */
-	List<SoundInfo> filledSlots() {
+	List<SoundInfo> filledSlots(Player player) {
+		boolean extra = PRIVATE_SLOT_UID.equals(player.getUID());
 		return bySlot.values().stream()
+				.filter(entry -> extra || entry.slot <= PUBLIC_MAX_SLOT)
 				.sorted(Comparator.comparingInt(Entry::slot))
 				.map(entry -> new SoundInfo(entry.slot, entry.displayName))
 				.toList();
+	}
+
+	/** True when this player may pick the slot in the sound menu. */
+	boolean canPickSlot(Player player, int slot) {
+		return slot <= PUBLIC_MAX_SLOT || PRIVATE_SLOT_UID.equals(player.getUID());
 	}
 
 	/** Display name of a loaded slot, or {@code null} if the slot is empty. */

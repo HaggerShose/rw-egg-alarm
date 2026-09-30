@@ -9,7 +9,7 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 ## Flow
 
 ```text
-Ctrl+O on a persistent rainbow egg (crosshair ray, 3 m)
+Ctrl+O on a persistent rainbow egg (crosshair ray, 5 m)
   unlinked: anyone -> Verknuepfen + Neu verknuepfen
   linked: owner uid or admin only -> Trennen + Sound + Range + TEST
 Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 10 m

@@ -29,7 +29,7 @@ public class EggAlarmService {
 	/** Default hear radius in meters. Allowed values: 32, 64, 128. */
 	private static final int DEFAULT_MAX_DISTANCE = 64;
 	/** Max look distance for Ctrl+O (world units / meters). */
-	private static final float LOOK_DISTANCE = 3f;
+	private static final float LOOK_DISTANCE = 5f;
 	/** Nearest furnace / grill / oven search radius. */
 	private static final float LINK_RADIUS = 10f;
 	/** Positions within this distance count as the same placed egg. */
@@ -211,8 +211,8 @@ public class EggAlarmService {
 	}
 
 	/** Loaded sound slots, ascending. Empty slots are omitted. */
-	List<EggAlarmSounds.SoundInfo> filledSlots() {
-		return sounds.filledSlots();
+	List<EggAlarmSounds.SoundInfo> filledSlots(Player player) {
+		return sounds.filledSlots(player);
 	}
 
 	/**
@@ -229,6 +229,9 @@ public class EggAlarmService {
 		}
 		EggLink link = findLink(egg);
 		if (link == null || !canEdit(player, link)) {
+			return;
+		}
+		if (!sounds.canPickSlot(player, slot)) {
 			return;
 		}
 		String name = sounds.displayName(slot);

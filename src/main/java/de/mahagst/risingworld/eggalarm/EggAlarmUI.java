@@ -137,7 +137,7 @@ public class EggAlarmUI {
 			return;
 		}
 		long eggId = egg.getGlobalID();
-		List<EggAlarmSounds.SoundInfo> slots = service.filledSlots();
+		List<EggAlarmSounds.SoundInfo> slots = service.filledSlots(player);
 		int back = slots.size();
 		TextureAsset[] icons = new TextureAsset[back + 1];
 		String[] labels = new String[back + 1];

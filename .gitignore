@@ -1,4 +1,5 @@
 target/
+sounds/
 
 *.code-workspace
 *.zip
