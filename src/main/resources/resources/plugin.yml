@@ -1,6 +1,6 @@
 name: EggAlarm
 main: de.mahagst.risingworld.eggalarm.EggAlarmPlugin
-version: 0.0.1
+version: 1.0.0
 api: 0.9.3.2
 author: mahagst
 description: Alarm clock for cooking and stuff.
