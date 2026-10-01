@@ -54,6 +54,7 @@ public class EggAlarmPlugin extends Plugin implements Listener {
 		ui = new EggAlarmUI(this, service);
 		ui.load();
 		service.attach(ui);
+		service.startGcSweep();
 		registerEventListener(this);
 		listening = true;
 		for (Player player : Server.getAllPlayers()) {

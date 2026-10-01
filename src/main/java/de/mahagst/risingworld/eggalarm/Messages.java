@@ -17,13 +17,23 @@ public final class Messages {
 		MENU_UNLINK,
 		MENU_SOUND,
 		MENU_RANGE,
+		MENU_VOLUME,
+		MENU_LOUDER,
+		MENU_QUIETER,
+		MENU_VOLUME_25,
+		MENU_VOLUME_50,
+		MENU_VOLUME_75,
+		MENU_VOLUME_MAX,
 		MENU_TEST,
 		MENU_LINK,
 		MENU_BACK,
+		MENU_CLOSE,
 		SOUND_SAVE_FAILED,
 		SOUND_SET,
 		RANGE_SAVE_FAILED,
 		RANGE_SET,
+		VOLUME_SAVE_FAILED,
+		VOLUME_SET,
 		NO_DEVICE,
 		LINK_FAILED,
 		LINKED,
@@ -38,13 +48,23 @@ public final class Messages {
 		put(Key.MENU_UNLINK, "Unlink", "Trennen");
 		put(Key.MENU_SOUND, "Sound", "Sound");
 		put(Key.MENU_RANGE, "Range", "Reichweite");
+		put(Key.MENU_VOLUME, "Volume", "Lautstärke");
+		put(Key.MENU_LOUDER, "Louder", "Lauter");
+		put(Key.MENU_QUIETER, "Quieter", "Leiser");
+		put(Key.MENU_VOLUME_25, "25%", "25%");
+		put(Key.MENU_VOLUME_50, "50%", "50%");
+		put(Key.MENU_VOLUME_75, "75%", "75%");
+		put(Key.MENU_VOLUME_MAX, "Max", "Max");
 		put(Key.MENU_TEST, "TEST", "TEST");
 		put(Key.MENU_LINK, "Link", "Verknüpfen");
 		put(Key.MENU_BACK, "Back", "Zurück");
+		put(Key.MENU_CLOSE, "Close", "Schließen");
 		put(Key.SOUND_SAVE_FAILED, "Failed to save sound.", "Sound speichern fehlgeschlagen.");
 		put(Key.SOUND_SET, "Sound: {0}", "Sound: {0}");
 		put(Key.RANGE_SAVE_FAILED, "Failed to save range.", "Reichweite speichern fehlgeschlagen.");
 		put(Key.RANGE_SET, "Range: {0}", "Reichweite: {0}");
+		put(Key.VOLUME_SAVE_FAILED, "Failed to save volume.", "Lautstärke speichern fehlgeschlagen.");
+		put(Key.VOLUME_SET, "Volume: {0}%", "Lautstärke: {0}%");
 		put(Key.NO_DEVICE,
 				"No furnace, grill, oven, or skewer within 10 m.",
 				"Kein Ofen, Grill, Backofen oder Spieß in 10 m.");

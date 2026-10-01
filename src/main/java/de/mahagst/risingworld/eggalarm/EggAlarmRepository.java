@@ -140,20 +140,41 @@ final class EggAlarmRepository {
 		}
 	}
 
-	/** Writes sound and range. Owner, volume, and created_at stay. */
+	/** Writes the linker as owner. Sound, range, volume, and created_at stay. */
+	boolean updateOwner(AlarmDevice device) {
+		var sql = """
+				UPDATE alarm_devices
+				SET owner_uid = ?
+				WHERE device_object_id = ? AND device_cx = ? AND device_cy = ? AND device_cz = ?
+				""";
+		try (var prep = database.getConnection().prepareStatement(sql)) {
+			prep.setString(1, device.ownerUid);
+			prep.setLong(2, device.objectId);
+			prep.setInt(3, device.cx);
+			prep.setInt(4, device.cy);
+			prep.setInt(5, device.cz);
+			return prep.executeUpdate() > 0;
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	/** Writes sound, range, and volume. Owner and created_at stay. */
 	boolean updateSettings(AlarmDevice device) {
 		var sql = """
 				UPDATE alarm_devices
-				SET sound_id = ?, max_distance = ?
+				SET sound_id = ?, max_distance = ?, volume = ?
 				WHERE device_object_id = ? AND device_cx = ? AND device_cy = ? AND device_cz = ?
 				""";
 		try (var prep = database.getConnection().prepareStatement(sql)) {
 			prep.setInt(1, device.soundId);
 			prep.setInt(2, device.maxDistance);
-			prep.setLong(3, device.objectId);
-			prep.setInt(4, device.cx);
-			prep.setInt(5, device.cy);
-			prep.setInt(6, device.cz);
+			prep.setDouble(3, device.volume);
+			prep.setLong(4, device.objectId);
+			prep.setInt(5, device.cx);
+			prep.setInt(6, device.cy);
+			prep.setInt(7, device.cz);
 			return prep.executeUpdate() > 0;
 		} catch (SQLException e) {
 			e.printStackTrace();

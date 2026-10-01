@@ -1,3 +1,3 @@
 # Ideas for the future
 
-- Garbage-collect für verwaiste Links implementieren.
+- `sound-slot-wave.png` und `sound-slot-note.png` sind ungenutzt (Slots nutzen `sound-slot-disc.png`).

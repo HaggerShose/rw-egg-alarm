@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.risingworld.api.Plugin;
+import net.risingworld.api.Timer;
 import net.risingworld.api.World;
 import net.risingworld.api.definitions.Objects;
 import net.risingworld.api.objects.Player;
@@ -19,27 +20,31 @@ import net.risingworld.api.utils.Vector3f;
 
 /**
  * Look-up, egg links, radial menu gate, sound pick, and the transform alarm.
- * Hot path uses RAM maps; SQLite only on enable load and on link / unlink / sound / range change.
+ * Hot path uses RAM maps; SQLite only on enable load, the delayed missing-device sweep,
+ * and on link / unlink / sound / range change.
  * <p>
- * A device keeps owner, sound, range, and volume. Linking attaches this egg to the
- * nearest device and drops any previous egg on that device. Settings stay when the
- * device is already registered.
+ * Sound, range, and volume stay on the device. Linking attaches this egg to the
+ * nearest device, makes the linker the owner, and drops any previous egg on that device.
  */
 public class EggAlarmService {
 	/** Item variant of the rainbow egg (definitions.db {@code items_variants}). */
 	private static final int RAINBOW_VARIANT = 3;
 	/** Default sound slot stored on a new device. */
 	private static final int DEFAULT_SOUND_ID = 1;
-	/** Default hear radius in meters. Allowed values: 32, 64, 128. */
+	/** Default hear radius in meters. Allowed values: 32, 64, 128, 256. */
 	private static final int DEFAULT_MAX_DISTANCE = 64;
 	/** Max look distance for Ctrl+O (world units / meters). */
 	private static final float LOOK_DISTANCE = 5f;
 	/** Nearest furnace / grill / oven search radius. */
-	private static final float LINK_RADIUS = 10f;
+	private static final float LINK_RADIUS = 5f;
 	/** Positions within this distance count as the same placed egg. */
 	private static final float POSITION_EPSILON = 0.05f;
 	/** Wall-clock silence after an alarm on a device (stacked transforms share one sound). */
-	private static final long ALARM_COOLDOWN_MS = 5000L;
+	private static final long ALARM_COOLDOWN_MS = 8000L;
+	/** Poll interval while waiting for {@link World#isInitialized()}. */
+	private static final float READY_POLL_SECONDS = 1f;
+	/** Wait after the world is initialized before the missing-device sweep. */
+	private static final float READY_DELAY_SECONDS = 10f;
 
 	private static final int LOOK_MASK = Layer.getBitmask(
 			Layer.ITEM,
@@ -52,8 +57,10 @@ public class EggAlarmService {
 	private final EggAlarmRepository repository;
 	private final EggAlarmSounds sounds;
 	private EggAlarmUI ui;
-	/** Set on disable so in-flight look and menu callbacks return. */
+	/** Set on disable so in-flight look, menu, and sweep callbacks return. */
 	private boolean closed;
+	private Timer readyTimer;
+	private Timer sweepTimer;
 
 	private final Map<DeviceKey, AlarmDevice> byDevice = new HashMap<>();
 	private final Map<EggKey, AlarmEgg> byEgg = new HashMap<>();
@@ -74,10 +81,15 @@ public class EggAlarmService {
 	}
 
 	/**
-	 * Drops RAM links. In-flight look and menu callbacks see {@link #closed} and return.
+	 * Drops RAM links and kills the startup sweep timers.
+	 * In-flight look, menu, and sweep callbacks see {@link #closed} and return.
 	 */
 	void close() {
 		closed = true;
+		killTimer(readyTimer);
+		killTimer(sweepTimer);
+		readyTimer = null;
+		sweepTimer = null;
 		byDevice.clear();
 		byEgg.clear();
 		byGlobalId.clear();
@@ -88,7 +100,7 @@ public class EggAlarmService {
 
 	/**
 	 * Load every device, then every egg, into RAM. Binds a session egg id when the
-	 * egg is already loaded; missing eggs stay. No deletes on enable.
+	 * egg is already loaded. Does not delete missing devices; {@link #startGcSweep()} does that later.
 	 *
 	 * @return false if a query itself failed
 	 */
@@ -109,11 +121,87 @@ public class EggAlarmService {
 	}
 
 	/**
+	 * After RAM load: wait until the world is initialized, then {@link #READY_DELAY_SECONDS},
+	 * then drop devices {@link World#getObject} no longer finds. Eggs cascade with the device.
+	 */
+	void startGcSweep() {
+		if (closed) {
+			return;
+		}
+		if (World.isInitialized()) {
+			scheduleSweepDelay();
+		} else {
+			startReadyPoll();
+		}
+	}
+
+	private void startReadyPoll() {
+		killTimer(readyTimer);
+		readyTimer = new Timer(READY_POLL_SECONDS, READY_POLL_SECONDS, -1, () -> plugin.enqueue(this::onReadyPoll));
+		readyTimer.start();
+	}
+
+	private void onReadyPoll() {
+		if (closed) {
+			return;
+		}
+		if (!World.isInitialized()) {
+			return;
+		}
+		killTimer(readyTimer);
+		readyTimer = null;
+		scheduleSweepDelay();
+	}
+
+	private void scheduleSweepDelay() {
+		if (closed) {
+			return;
+		}
+		killTimer(sweepTimer);
+		sweepTimer = new Timer(1f, READY_DELAY_SECONDS, 0, () -> plugin.enqueue(this::sweepMissingDevices));
+		sweepTimer.start();
+	}
+
+	/**
+	 * Deletes devices the world no longer has. A living device keeps its egg row,
+	 * including when the egg itself is missing.
+	 */
+	private void sweepMissingDevices() {
+		if (closed) {
+			return;
+		}
+		sweepTimer = null;
+		int removed = 0;
+		for (AlarmDevice device : new ArrayList<>(byDevice.values())) {
+			if (closed) {
+				return;
+			}
+			ObjectElement object = World.getObject(device.objectId, device.cx, device.cy, device.cz);
+			if (object != null) {
+				continue;
+			}
+			if (!repository.deleteDevice(device)) {
+				System.out.println("[EggAlarm] Failed to delete missing device " + device.objectId);
+				continue;
+			}
+			forgetDevice(device);
+			removed++;
+		}
+		System.out.println("[EggAlarm] device sweep removed " + removed);
+	}
+
+	private static void killTimer(Timer timer) {
+		if (timer != null && !timer.isKilled()) {
+			timer.kill();
+		}
+	}
+
+	/**
 	 * Meta-object finished an item transform. RAM lookup only; one-shot sound at the egg.
 	 * Live pose when the egg is loaded, otherwise the stored position.
 	 * Per-device cooldown: after a play, further transforms are silent for
 	 * {@link #ALARM_COOLDOWN_MS} so stacked items do not stack sounds.
-	 * Devices without an egg stay silent. Stored volume is not applied yet.
+	 * Devices without an egg stay silent. Volume is the stored device level.
 	 *
 	 * @param objectId device global id (same as {@code ObjectElement.getGlobalID()})
 	 * @param cx device chunk x
@@ -142,7 +230,7 @@ public class EggAlarmService {
 		} else {
 			position = new Vector3f(egg.x, egg.y, egg.z);
 		}
-		sounds.playAt(device.soundId, position, device.maxDistance);
+		sounds.playAt(device.soundId, position, device.maxDistance, device.volume);
 		lastAlarmAt.put(key, now);
 	}
 
@@ -200,11 +288,17 @@ public class EggAlarmService {
 			return;
 		}
 		switch (actions[selection]) {
-			case LINK -> linkEgg(player, egg);
+			case LINK -> {
+				if (linkEgg(player, egg) && ui != null) {
+					ui.scheduleEggMenu(player, eggId);
+				}
+			}
 			case UNLINK -> {
 				if (link != null) {
 					unlinkEgg(player, link);
 				}
+			}
+			case CLOSE -> {
 			}
 			case SOUNDS -> {
 				if (device != null && ui != null) {
@@ -216,9 +310,17 @@ public class EggAlarmService {
 					ui.showRangeMenu(player, egg, device.maxDistance);
 				}
 			}
+			case VOLUME -> {
+				if (device != null && ui != null) {
+					ui.showVolumeMenu(player, egg, AlarmDevice.volumePercent(device.volume));
+				}
+			}
 			case TEST -> {
 				if (device != null) {
-					sounds.playAt(device.soundId, egg.getPosition(), device.maxDistance);
+					sounds.playAt(device.soundId, egg.getPosition(), device.maxDistance, device.volume);
+					if (ui != null) {
+						ui.scheduleEggMenu(player, eggId);
+					}
 				}
 			}
 		}
@@ -270,13 +372,13 @@ public class EggAlarmService {
 			byDevice.put(deviceKey(next), next);
 			device = next;
 		}
-		sounds.playAt(slot, egg.getPosition(), device.maxDistance);
+		sounds.playAt(slot, egg.getPosition(), device.maxDistance, device.volume);
 		player.sendTextMessage(Messages.format(player, Messages.Key.SOUND_SET, name));
 	}
 
 	/**
-	 * Persist hear radius on the device and play the current sound once.
-	 * Same radius skips the write and still previews.
+	 * Persist hear radius on the device. No preview.
+	 * Same radius skips the write.
 	 */
 	void setRange(Player player, long eggId, int meters) {
 		if (closed) {
@@ -310,23 +412,96 @@ public class EggAlarmService {
 				return;
 			}
 			byDevice.put(deviceKey(next), next);
-			device = next;
 		}
-		sounds.playAt(device.soundId, egg.getPosition(), distance);
 		player.sendTextMessage(Messages.format(player, Messages.Key.RANGE_SET, Integer.toString(distance)));
 	}
 
 	/**
-	 * Attaches this egg to the nearest device within {@link #LINK_RADIUS}.
-	 * A new device stores defaults. An existing device keeps owner, sound, range,
-	 * and volume, including when another player owns it. Any other egg on that
-	 * device is removed. This egg is detached from a different device first.
+	 * Steps device volume by {@code deltaPercent} (typically +5 or -5), clamped to 0..100.
+	 * Same level skips the write and still previews.
+	 *
+	 * @return the resulting percent, or {@code -1} when the egg or save is not usable
 	 */
-	private void linkEgg(Player player, WorldItem egg) {
+	int adjustVolume(Player player, long eggId, int deltaPercent) {
+		if (closed) {
+			return -1;
+		}
+		WorldItem egg = World.getItem(eggId);
+		if (!isTargetEgg(egg)) {
+			return -1;
+		}
+		AlarmDevice device = deviceOf(findEgg(egg));
+		if (device == null || !canEdit(player, device)) {
+			return -1;
+		}
+		int percent = AlarmDevice.volumePercent(device.volume) + deltaPercent;
+		if (percent < 0) {
+			percent = 0;
+		} else if (percent > 100) {
+			percent = 100;
+		}
+		return writeVolume(player, egg, device, percent);
+	}
+
+	/**
+	 * Sets device volume to {@code percent} (snapped to 5%) and plays a preview.
+	 * Same level skips the write and still previews.
+	 *
+	 * @return the resulting percent, or {@code -1} when the egg or save is not usable
+	 */
+	int setVolumePercent(Player player, long eggId, int percent) {
+		if (closed) {
+			return -1;
+		}
+		WorldItem egg = World.getItem(eggId);
+		if (!isTargetEgg(egg)) {
+			return -1;
+		}
+		AlarmDevice device = deviceOf(findEgg(egg));
+		if (device == null || !canEdit(player, device)) {
+			return -1;
+		}
+		return writeVolume(player, egg, device, AlarmDevice.volumePercent(percent / 100f));
+	}
+
+	private int writeVolume(Player player, WorldItem egg, AlarmDevice device, int percent) {
+		float volume = percent / 100f;
+		if (AlarmDevice.volumePercent(device.volume) != percent) {
+			AlarmDevice next = new AlarmDevice(
+					device.objectId,
+					device.cx,
+					device.cy,
+					device.cz,
+					device.ownerUid,
+					device.soundId,
+					device.maxDistance,
+					volume,
+					device.createdAt);
+			if (!repository.updateSettings(next)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.VOLUME_SAVE_FAILED));
+				return -1;
+			}
+			byDevice.put(deviceKey(next), next);
+			device = next;
+		}
+		sounds.playAt(device.soundId, egg.getPosition(), device.maxDistance, device.volume);
+		player.sendTextMessage(Messages.format(player, Messages.Key.VOLUME_SET, Integer.toString(percent)));
+		return percent;
+	}
+
+	/**
+	 * Attaches this egg to the nearest device within {@link #LINK_RADIUS}.
+	 * A new device stores defaults (volume {@link AlarmDevice#DEFAULT_VOLUME}).
+	 * An existing device keeps sound, range, and volume; the linker becomes owner.
+	 * Any other egg on that device is removed. This egg is detached from a different device first.
+	 *
+	 * @return true when the egg is linked
+	 */
+	private boolean linkEgg(Player player, WorldItem egg) {
 		ObjectElement deviceObject = nearestDevice(egg.getPosition());
 		if (deviceObject == null) {
 			player.sendTextMessage(Messages.get(player, Messages.Key.NO_DEVICE));
-			return;
+			return false;
 		}
 		DeviceKey key = deviceKey(deviceObject);
 		AlarmDevice device = byDevice.get(key);
@@ -343,16 +518,33 @@ public class EggAlarmService {
 					System.currentTimeMillis());
 			if (!repository.insertDevice(device)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
-				return;
+				return false;
 			}
 			byDevice.put(key, device);
+		} else if (!player.getUID().equals(device.ownerUid)) {
+			AlarmDevice claimed = new AlarmDevice(
+					device.objectId,
+					device.cx,
+					device.cy,
+					device.cz,
+					player.getUID(),
+					device.soundId,
+					device.maxDistance,
+					device.volume,
+					device.createdAt);
+			if (!repository.updateOwner(claimed)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
+				return false;
+			}
+			byDevice.put(key, claimed);
+			device = claimed;
 		}
 		Vector3f pos = egg.getPosition();
 		AlarmEgg previous = findEgg(egg);
 		if (previous != null && !sameStoredPose(previous, egg)) {
 			if (!repository.deleteEgg(previous)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
-				return;
+				return false;
 			}
 			forgetEgg(previous);
 		}
@@ -360,7 +552,7 @@ public class EggAlarmService {
 		if (occupant != null && !sameStoredPose(occupant, egg)) {
 			if (!repository.deleteEgg(occupant)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
-				return;
+				return false;
 			}
 			forgetEgg(occupant);
 		}
@@ -377,10 +569,11 @@ public class EggAlarmService {
 		next.eggGlobalId = egg.getGlobalID();
 		if (!repository.upsertEgg(next)) {
 			player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
-			return;
+			return false;
 		}
 		rememberEgg(next);
 		player.sendTextMessage(Messages.linkedTo(player, deviceObject.getDefinition(), deviceObject.getWorldPosition()));
+		return true;
 	}
 
 	/** Drops the device and, via cascade, its egg. World objects stay. */
@@ -580,7 +773,9 @@ public class EggAlarmService {
 		UNLINK,
 		SOUNDS,
 		RANGE,
-		TEST
+		VOLUME,
+		TEST,
+		CLOSE
 	}
 
 	private record EggKey(long creationDate, int qx, int qy, int qz, int variant) {

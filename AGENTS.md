@@ -10,27 +10,38 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 
 ```text
 Ctrl+O on a persistent rainbow egg (crosshair ray, 5 m)
-  unlinked: anyone -> Verknuepfen
-  linked: owner uid or admin only -> Trennen + Sound + Range + TEST
+  unlinked: anyone -> Verknuepfen + Schliessen
+  linked: owner uid or admin only -> Trennen + Sound + Range + Lautstaerke + TEST + Schliessen
 Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 10 m
   skewer is object name skewer, type Grill
-  device not registered: new row, owner = linker, sound 1, range 64, volume 1
-  device already registered (any owner): keep owner, sound, range, volume
+  device not registered: new row, owner = linker, sound 1, range 64, volume 0.8
+  device already registered: linker becomes owner; sound, range, volume stay
   one egg per device: the new egg replaces the previous egg row
   if this egg was on another device, that assignment is removed; the other device stays
+  success reopens the linked main menu (same delay as other swaps)
 Sound (linked only): submenu of filled slots 1..7 (display name; current marked with *)
   opens after a short delay so the closing main menu does not dismiss it
-  pick -> persist sound_id on the device + one preview at the egg
+  pick -> persist sound_id + one preview, then this submenu again (same delay)
+  closeOnSelect stays true: a radial left open after a click takes no further input
   Zurueck -> main menu again (same delay)
-Range (linked only): submenu 32 / 64 / 128 (current marked with *)
-  pick -> persist max_distance on the device + one preview; min distance stays 5
+Range (linked only): submenu 32 / 64 / 128 / 256 (current marked with *)
+  pick -> persist max_distance on the device (no preview), then the main menu (same delay)
+  min distance stays 1
   Zurueck -> main menu again (same delay)
-Trennen: delete the device; ON DELETE CASCADE removes its egg. World objects stay.
+Volume (linked only): submenu Lauter / Leiser / 25% / 50% / 75% / Max / Zurueck
+  Lauter / Leiser: step 5 percent, clamped 0..100; persist + preview; chat shows the percent
+  then this submenu opens again
+  preset 25 / 50 / 75 / Max (100): persist + preview, then the main menu
+  current preset is marked with * when the stored percent matches exactly
+  Zurueck -> main menu (same delay)
+TEST: one preview, then the linked main menu again
+Trennen: delete the device; ON DELETE CASCADE removes its egg. World objects stay. Menu stays closed.
+Schliessen: no-op; the radial closes because closeOnSelect is true.
 ItemTransformEvent on that device (cancelled / non-meta ignored)
   -> RAM device key -> one-shot 3D sound at the egg (live pose, else stored xyz)
      for every player within max distance. No SQLite. No egg -> silent.
   -> 5 s wall-clock cooldown per device after a play (stacked items do not stack sounds)
-  volume column is stored but playAt still uses 1 until a later volume control
+  playAt uses the stored volume (0..1, 5% steps) and stops tracked clips first
 F pickup stays vanilla. No long-press.
 ```
 
@@ -60,6 +71,7 @@ Follow the workspace root [`AGENTS.md`](../AGENTS.md) (release what you touched;
 - stop tracked `Sound` instances (`stop(true)`) before clearing the catalog (a clip still playing crashes SP unload)
 - clear sound catalog map only (PluginAssetManager frees the assets)
 - egg icon from the item definition is never disposed
+- plugin-loaded radial icons under `/icons/` are only nulled, never disposed
 - RAM link maps cleared; SQLite checkpoint + close
 
 A failed enable clears the sound catalog (and closes the DB, if it was opened) the same way.
@@ -90,9 +102,9 @@ alarm_eggs:
 
 Enable migrates a legacy `egg_links` table into these two (volume `1.0`, first device row wins), then drops it. `SqliteSchema.ensureColumn` adds `volume` if an `alarm_devices` table predates that column.
 
-RAM: `byDevice`, `byEgg`, `byGlobalId`, `deviceEggs` (at most one egg per device). Enable loads devices then eggs and rebinds `eggGlobalId` when the egg is already loaded. No deletes on enable. SQLite only on enable load and on link / unlink / sound change / range change. A device without an egg stays until unlink or a later GC. Picking the egg up does not delete the device; the next Link on a new egg attaches to the nearest device and keeps settings when that device is already registered.
+RAM: `byDevice`, `byEgg`, `byGlobalId`, `deviceEggs` (at most one egg per device). Enable loads devices then eggs immediately and rebinds `eggGlobalId` when the egg is already loaded. After `World.isInitialized()` plus 10 s, one sweep calls `World.getObject` per device. A miss deletes that device (`ON DELETE CASCADE` drops its egg) and forgets RAM. A hit keeps the device, including when the egg is gone. No remove-event GC. SQLite otherwise only on link / unlink / owner claim / sound change / range change / volume change. Picking the egg up does not delete the device; the next Link on a new egg attaches to the nearest device, claims ownership, and keeps sound, range, and volume.
 
-Owner gate: linked egg opens only when `player.getUID()` equals the device `owner_uid` or `player.isAdmin()`. Linking onto an existing device does not change that owner. Unlinked eggs stay open to everyone.
+Owner gate: linked egg opens only when `player.getUID()` equals the device `owner_uid` or `player.isAdmin()`. Linking always sets `owner_uid` to the linker. Unlinked eggs stay open to everyone.
 
 Device whitelist: `Objects.Type.Furnace`, `Grill`, `Oven`. The skewer is a `Grill` whose definition name is `skewer` (no separate type). Search radius 10 m from the egg. Link chat names the device and its position (`Skewer` / `Spieß` when the name is `skewer`).
 
@@ -106,7 +118,7 @@ Filename: `NN_DisplayName.ext` or `NN.ext` (ogg/wav/mp3/flac). Slot is the integ
 
 DB stores the slot id, never a file path. Do not stream short effects.
 
-`playAt` plays for every connected, spawned player within the device `max_distance` (32, 64, or 128; default 64). Volume stays `1` (the stored `volume` column is unused until a later control), pitch `1`, min distance `5` (full volume nearby; does not scale with hear range).
+`playAt` plays for every connected, spawned player within the device `max_distance` (32, 64, 128, or 256; default 64). Volume is the stored device level (new devices default `0.8`, steps of 5%), pitch `1`, min distance `1` (full volume nearby; does not scale with hear range). Radial entries use PNGs under `/icons/` (sound slots share `sound-slot-disc.png`). `sound-slot-wave.png`, `sound-slot-note.png`, and `icons/oz/` are unused.
 
 ## Phases
 
@@ -114,7 +126,7 @@ DB stores the slot id, never a file path. Do not stream short effects.
 2. Device + egg tables, link / unlink, owner on the device, rebind after restart. Done.
 3. `ItemTransformEvent` -> device key -> alarm using `sound_id`. Done.
 4. Sound-picker radial (filled slots only), persist `sound_id` on the device. Done.
-5. Garbage-collect removed devices later (event + cautious chunk repair). Startup does not drop missing eggs or devices. Volume UI later; the column is already stored.
+5. Startup device sweep after world ready + 10 s (`getObject` miss deletes the device and its egg). No event GC. Volume submenu is Lauter / Leiser (5% steps, menu stays) plus presets 25 / 50 / 75 / Max (then main menu).
 
 ## Not in scope
 

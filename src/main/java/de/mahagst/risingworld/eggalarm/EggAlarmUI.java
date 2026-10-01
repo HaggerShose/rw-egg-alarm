@@ -18,16 +18,54 @@ import net.risingworld.api.objects.WorldItem;
 public class EggAlarmUI {
 	/** Item variant of the rainbow egg icon. */
 	private static final int RAINBOW_VARIANT = 3;
+	private static final String ICON_LINK = "/icons/link.png";
+	private static final String ICON_UNLINK = "/icons/unlink.png";
+	private static final String ICON_SOUND = "/icons/sound.png";
+	private static final String ICON_RANGE = "/icons/range.png";
+	private static final String ICON_VOLUME = "/icons/volume.png";
+	private static final String ICON_PLAY = "/icons/play.png";
+	private static final String ICON_CLOSE = "/icons/close.png";
+	private static final String ICON_BACK = "/icons/back.png";
+	private static final String ICON_SOUND_SLOT = "/icons/sound-slot-disc.png";
+	private static final String ICON_RANGE_32 = "/icons/range-32.png";
+	private static final String ICON_RANGE_64 = "/icons/range-64.png";
+	private static final String ICON_RANGE_128 = "/icons/range-128.png";
+	private static final String ICON_RANGE_256 = "/icons/range-256.png";
+	private static final String ICON_VOLUME_UP = "/icons/volume_up.png";
+	private static final String ICON_VOLUME_DOWN = "/icons/volume_down.png";
+	private static final String ICON_VOLUME_25 = "/icons/volume-25.png";
+	private static final String ICON_VOLUME_50 = "/icons/volume-50.png";
+	private static final String ICON_VOLUME_75 = "/icons/volume-75.png";
+	private static final String ICON_VOLUME_MAX = "/icons/volume-max.png";
 	/**
 	 * Wait before the next radial menu. Opening one inside the previous
 	 * selection callback gets closed by the client as it dismisses the old menu.
 	 */
-	private static final float MENU_SWAP_DELAY = 0.12f;
+	private static final float MENU_SWAP_DELAY = 0.06f;
 
 	private final Plugin plugin;
 	private final EggAlarmService service;
 	private final List<Timer> pending = new ArrayList<>();
 	private TextureAsset eggIcon;
+	private TextureAsset linkIcon;
+	private TextureAsset unlinkIcon;
+	private TextureAsset soundIcon;
+	private TextureAsset rangeIcon;
+	private TextureAsset volumeIcon;
+	private TextureAsset playIcon;
+	private TextureAsset closeIcon;
+	private TextureAsset backIcon;
+	private TextureAsset soundSlotIcon;
+	private TextureAsset range32Icon;
+	private TextureAsset range64Icon;
+	private TextureAsset range128Icon;
+	private TextureAsset range256Icon;
+	private TextureAsset volumeUpIcon;
+	private TextureAsset volumeDownIcon;
+	private TextureAsset volume25Icon;
+	private TextureAsset volume50Icon;
+	private TextureAsset volume75Icon;
+	private TextureAsset volumeMaxIcon;
 	private boolean ready;
 	/** Set on disable so a late timer or menu callback does not touch the world. */
 	private boolean closed;
@@ -37,7 +75,7 @@ public class EggAlarmUI {
 		this.service = service;
 	}
 
-	/** Loads menu icons. Missing assets leave the UI disabled. */
+	/** Loads menu icons. Missing egg icon leaves the UI disabled. */
 	public void load() {
 		Items.ItemDefinition definition = Definitions.getItemDefinition("egg");
 		if (definition == null) {
@@ -49,6 +87,25 @@ public class EggAlarmUI {
 			System.out.println("[EggAlarm] Rainbow egg icon missing; UI disabled");
 			return;
 		}
+		linkIcon = loadIcon(ICON_LINK);
+		unlinkIcon = loadIcon(ICON_UNLINK);
+		soundIcon = loadIcon(ICON_SOUND);
+		rangeIcon = loadIcon(ICON_RANGE);
+		volumeIcon = loadIcon(ICON_VOLUME);
+		playIcon = loadIcon(ICON_PLAY);
+		closeIcon = loadIcon(ICON_CLOSE);
+		backIcon = loadIcon(ICON_BACK);
+		soundSlotIcon = loadIcon(ICON_SOUND_SLOT);
+		range32Icon = loadIcon(ICON_RANGE_32);
+		range64Icon = loadIcon(ICON_RANGE_64);
+		range128Icon = loadIcon(ICON_RANGE_128);
+		range256Icon = loadIcon(ICON_RANGE_256);
+		volumeUpIcon = loadIcon(ICON_VOLUME_UP);
+		volumeDownIcon = loadIcon(ICON_VOLUME_DOWN);
+		volume25Icon = loadIcon(ICON_VOLUME_25);
+		volume50Icon = loadIcon(ICON_VOLUME_50);
+		volume75Icon = loadIcon(ICON_VOLUME_75);
+		volumeMaxIcon = loadIcon(ICON_VOLUME_MAX);
 		ready = true;
 	}
 
@@ -60,11 +117,31 @@ public class EggAlarmUI {
 	/**
 	 * Kills menu-swap timers and ignores later callbacks.
 	 * The egg icon comes from the item definition and is not disposed.
+	 * Plugin-loaded textures are left for PluginAssetManager.
 	 */
 	void shutdown() {
 		closed = true;
 		ready = false;
 		eggIcon = null;
+		linkIcon = null;
+		unlinkIcon = null;
+		soundIcon = null;
+		rangeIcon = null;
+		volumeIcon = null;
+		playIcon = null;
+		closeIcon = null;
+		backIcon = null;
+		soundSlotIcon = null;
+		range32Icon = null;
+		range64Icon = null;
+		range128Icon = null;
+		range256Icon = null;
+		volumeUpIcon = null;
+		volumeDownIcon = null;
+		volume25Icon = null;
+		volume50Icon = null;
+		volume75Icon = null;
+		volumeMaxIcon = null;
 		List<Timer> timers = new ArrayList<>(pending);
 		pending.clear();
 		for (Timer timer : timers) {
@@ -75,8 +152,8 @@ public class EggAlarmUI {
 	}
 
 	/**
-	 * Linked (owner / admin): Trennen, Sound, Range, TEST.
-	 * Unlinked: Verknuepfen. The nearest device keeps its settings when it is already registered.
+	 * Linked (owner / admin): Trennen, Sound, Range, Lautstaerke, TEST, Schliessen.
+	 * Unlinked: Verknuepfen, Schliessen. Linking makes the player the owner.
 	 */
 	public void showEggMenu(Player player, WorldItem egg, boolean linked) {
 		if (closed || eggIcon == null) {
@@ -89,21 +166,27 @@ public class EggAlarmUI {
 		if (linked) {
 			actions.add(EggAlarmService.MenuAction.UNLINK);
 			labels.add(Messages.get(player, Messages.Key.MENU_UNLINK));
-			icons.add(eggIcon);
+			icons.add(unlinkIcon);
 			actions.add(EggAlarmService.MenuAction.SOUNDS);
 			labels.add(Messages.get(player, Messages.Key.MENU_SOUND));
-			icons.add(eggIcon);
+			icons.add(soundIcon);
 			actions.add(EggAlarmService.MenuAction.RANGE);
 			labels.add(Messages.get(player, Messages.Key.MENU_RANGE));
-			icons.add(eggIcon);
+			icons.add(rangeIcon);
+			actions.add(EggAlarmService.MenuAction.VOLUME);
+			labels.add(Messages.get(player, Messages.Key.MENU_VOLUME));
+			icons.add(volumeIcon);
 			actions.add(EggAlarmService.MenuAction.TEST);
 			labels.add(Messages.get(player, Messages.Key.MENU_TEST));
-			icons.add(eggIcon);
+			icons.add(playIcon);
 		} else {
 			actions.add(EggAlarmService.MenuAction.LINK);
 			labels.add(Messages.get(player, Messages.Key.MENU_LINK));
-			icons.add(eggIcon);
+			icons.add(linkIcon);
 		}
+		actions.add(EggAlarmService.MenuAction.CLOSE);
+		labels.add(Messages.get(player, Messages.Key.MENU_CLOSE));
+		icons.add(closeIcon);
 
 		EggAlarmService.MenuAction[] actionArray = actions.toArray(EggAlarmService.MenuAction[]::new);
 		player.showRadialMenu(
@@ -125,12 +208,19 @@ public class EggAlarmUI {
 	}
 
 	/**
-	 * Filled sound slots plus Zurück. The current slot is marked with {@code *}.
-	 * Zurück reopens the linked egg menu. Both opens wait out {@link #MENU_SWAP_DELAY}
-	 * so the previous radial can finish closing.
+	 * Filled sound slots plus Zurueck. The current slot is marked with {@code *}.
+	 * A pick persists and previews, then reopens this menu.
+	 * {@code closeOnSelect} stays true: a radial left open after a click takes no further input.
 	 */
 	public void showSoundMenu(Player player, WorldItem egg, int currentSoundId) {
 		if (closed || eggIcon == null) {
+			return;
+		}
+		openAfterClose(() -> presentSoundMenu(player, egg, currentSoundId));
+	}
+
+	private void presentSoundMenu(Player player, WorldItem egg, int currentSoundId) {
+		if (closed || eggIcon == null || !player.isConnected()) {
 			return;
 		}
 		long eggId = egg.getGlobalID();
@@ -143,82 +233,178 @@ public class EggAlarmUI {
 			EggAlarmSounds.SoundInfo info = slots.get(i);
 			slotIds[i] = info.slot();
 			labels[i] = info.slot() == currentSoundId ? info.displayName() + " *" : info.displayName();
-			icons[i] = eggIcon;
+			icons[i] = soundSlotIcon;
 		}
 		labels[back] = Messages.get(player, Messages.Key.MENU_BACK);
-		icons[back] = eggIcon;
-		openAfterClose(() -> {
-			if (!player.isConnected()) {
+		icons[back] = backIcon;
+		player.showRadialMenu(icons, labels, null, true, selection -> {
+			if (closed) {
 				return;
 			}
-			player.showRadialMenu(icons, labels, null, true, selection -> {
-				if (closed) {
+			plugin.enqueue(() -> {
+				if (closed || selection == null || selection < 0 || selection > back) {
 					return;
 				}
-				plugin.enqueue(() -> {
-					if (closed || selection == null || selection < 0 || selection > back) {
-						return;
+				if (selection == back) {
+					openAfterClose(() -> reopenEggMenu(player, eggId));
+					return;
+				}
+				int slot = slotIds[selection];
+				service.setSound(player, eggId, slot);
+				openAfterClose(() -> {
+					WorldItem again = World.getItem(eggId);
+					if (service.isTargetEgg(again)) {
+						presentSoundMenu(player, again, slot);
 					}
-					if (selection == back) {
-						openAfterClose(() -> {
-							WorldItem again = World.getItem(eggId);
-							if (service.isTargetEgg(again)) {
-								showEggMenu(player, again, true);
-							}
-						});
-						return;
-					}
-					service.setSound(player, eggId, slotIds[selection]);
 				});
 			});
 		});
 	}
 
 	/**
-	 * Hear radii 32 / 64 / 128 plus Zurueck. The current value is marked with {@code *}.
-	 * Zurueck reopens the linked egg menu after {@link #MENU_SWAP_DELAY}.
+	 * Hear radii 32 / 64 / 128 / 256 plus Zurueck. The current value is marked with {@code *}.
+	 * A pick persists and previews, then reopens the linked egg menu.
 	 */
 	public void showRangeMenu(Player player, WorldItem egg, int currentDistance) {
 		if (closed || eggIcon == null) {
 			return;
 		}
+		openAfterClose(() -> presentRangeMenu(player, egg, currentDistance));
+	}
+
+	private void presentRangeMenu(Player player, WorldItem egg, int currentDistance) {
+		if (closed || eggIcon == null || !player.isConnected()) {
+			return;
+		}
 		long eggId = egg.getGlobalID();
-		int[] ranges = { 32, 64, 128 };
+		int[] ranges = { 32, 64, 128, 256 };
+		TextureAsset[] rangeIcons = { range32Icon, range64Icon, range128Icon, range256Icon };
 		int back = ranges.length;
 		TextureAsset[] icons = new TextureAsset[back + 1];
 		String[] labels = new String[back + 1];
 		for (int i = 0; i < back; i++) {
 			String label = Integer.toString(ranges[i]);
 			labels[i] = ranges[i] == currentDistance ? label + " *" : label;
-			icons[i] = eggIcon;
+			icons[i] = rangeIcons[i];
 		}
 		labels[back] = Messages.get(player, Messages.Key.MENU_BACK);
-		icons[back] = eggIcon;
-		openAfterClose(() -> {
-			if (!player.isConnected()) {
+		icons[back] = backIcon;
+		player.showRadialMenu(icons, labels, null, true, selection -> {
+			if (closed) {
 				return;
 			}
-			player.showRadialMenu(icons, labels, null, true, selection -> {
-				if (closed) {
+			plugin.enqueue(() -> {
+				if (closed || selection == null || selection < 0 || selection > back) {
 					return;
 				}
-				plugin.enqueue(() -> {
-					if (closed || selection == null || selection < 0 || selection > back) {
-						return;
-					}
-					if (selection == back) {
-						openAfterClose(() -> {
-							WorldItem again = World.getItem(eggId);
-							if (service.isTargetEgg(again)) {
-								showEggMenu(player, again, true);
-							}
-						});
-						return;
-					}
+				if (selection != back) {
 					service.setRange(player, eggId, ranges[selection]);
-				});
+				}
+				openAfterClose(() -> reopenEggMenu(player, eggId));
 			});
 		});
+	}
+
+	/**
+	 * Louder / quieter in 5% steps, presets 25 / 50 / 75 / Max, plus Zurueck.
+	 * A step reopens this menu. A preset persists, previews, and reopens the egg menu.
+	 * The matching preset is marked with {@code *} when the current percent is exact.
+	 * Chat shows the percent. Zurueck reopens the linked egg menu.
+	 *
+	 * @param currentPercent stored volume as 0..100
+	 */
+	public void showVolumeMenu(Player player, WorldItem egg, int currentPercent) {
+		if (closed || eggIcon == null) {
+			return;
+		}
+		openAfterClose(() -> presentVolumeMenu(player, egg, currentPercent));
+	}
+
+	private void presentVolumeMenu(Player player, WorldItem egg, int currentPercent) {
+		if (closed || eggIcon == null || !player.isConnected()) {
+			return;
+		}
+		long eggId = egg.getGlobalID();
+		int[] presets = { 25, 50, 75, 100 };
+		Messages.Key[] presetKeys = {
+				Messages.Key.MENU_VOLUME_25,
+				Messages.Key.MENU_VOLUME_50,
+				Messages.Key.MENU_VOLUME_75,
+				Messages.Key.MENU_VOLUME_MAX
+		};
+		TextureAsset[] presetIcons = { volume25Icon, volume50Icon, volume75Icon, volumeMaxIcon };
+		int back = 2 + presets.length;
+		TextureAsset[] icons = new TextureAsset[back + 1];
+		String[] labels = new String[back + 1];
+		icons[0] = volumeUpIcon;
+		labels[0] = Messages.get(player, Messages.Key.MENU_LOUDER);
+		icons[1] = volumeDownIcon;
+		labels[1] = Messages.get(player, Messages.Key.MENU_QUIETER);
+		for (int i = 0; i < presets.length; i++) {
+			String label = Messages.get(player, presetKeys[i]);
+			labels[i + 2] = presets[i] == currentPercent ? label + " *" : label;
+			icons[i + 2] = presetIcons[i];
+		}
+		labels[back] = Messages.get(player, Messages.Key.MENU_BACK);
+		icons[back] = backIcon;
+		player.showRadialMenu(icons, labels, null, true, selection -> {
+			if (closed) {
+				return;
+			}
+			plugin.enqueue(() -> {
+				if (closed || selection == null || selection < 0 || selection > back) {
+					return;
+				}
+				if (selection == back) {
+					openAfterClose(() -> reopenEggMenu(player, eggId));
+					return;
+				}
+				if (selection <= 1) {
+					int delta = selection == 0 ? 5 : -5;
+					int percent = service.adjustVolume(player, eggId, delta);
+					if (percent < 0) {
+						return;
+					}
+					openAfterClose(() -> {
+						WorldItem again = World.getItem(eggId);
+						if (service.isTargetEgg(again)) {
+							presentVolumeMenu(player, again, percent);
+						}
+					});
+					return;
+				}
+				if (service.setVolumePercent(player, eggId, presets[selection - 2]) < 0) {
+					return;
+				}
+				openAfterClose(() -> reopenEggMenu(player, eggId));
+			});
+		});
+	}
+
+	/** Plugin PNG, or the egg icon when the file is missing. */
+	private TextureAsset loadIcon(String path) {
+		TextureAsset icon = TextureAsset.loadFromPlugin(plugin, path);
+		if (icon == null) {
+			System.out.println("[EggAlarm] Icon missing: " + path);
+			return eggIcon;
+		}
+		return icon;
+	}
+
+	/** Opens the linked egg menu after the current radial has closed. */
+	void scheduleEggMenu(Player player, long eggId) {
+		openAfterClose(() -> reopenEggMenu(player, eggId));
+	}
+
+	/** Linked egg menu after a submenu closes. No-op if the egg is gone. */
+	private void reopenEggMenu(Player player, long eggId) {
+		if (closed || !player.isConnected()) {
+			return;
+		}
+		WorldItem again = World.getItem(eggId);
+		if (service.isTargetEgg(again)) {
+			showEggMenu(player, again, true);
+		}
 	}
 
 	private void openAfterClose(Runnable open) {

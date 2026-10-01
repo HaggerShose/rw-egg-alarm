@@ -34,10 +34,9 @@ public class EggAlarmSounds {
 	/** Slots above this are hidden unless {@link #PRIVATE_SLOT_UID} opens the menu. */
 	private static final int PUBLIC_MAX_SLOT = 7;
 	private static final String PRIVATE_SLOT_UID = "76561198002368372";
-	private static final float VOLUME = 1f;
 	private static final float PITCH = 1f;
-	/** Full-volume radius. Stays fixed; hear range is per link. */
-	private static final float MIN_DISTANCE = 5f;
+	/** Full-volume radius in meters. Hear range is per link. */
+	private static final float MIN_DISTANCE = 1f;
 	private static final Pattern FILE_NAME = Pattern.compile(
 			"^(\\d{1,2})(?:_(.*))?\\.(ogg|wav|mp3|flac)$",
 			Pattern.CASE_INSENSITIVE);
@@ -114,15 +113,18 @@ public class EggAlarmSounds {
 	/**
 	 * Plays the slot as a one-shot 3D sound at {@code position} for every connected,
 	 * spawned player within {@code maxDistance}. Missing slot: log and return.
-	 * {@code minDistance} stays {@link #MIN_DISTANCE}. Each instance is tracked until
+	 * {@code minDistance} stays {@link #MIN_DISTANCE}. {@code volume} is the device
+	 * level (0..1). Stops every tracked clip first so a new preview or alarm does
+	 * not stack on the previous one. Each new instance is tracked until
 	 * {@link #unload()} so disable can stop it.
 	 */
-	public void playAt(int slot, Vector3f position, float maxDistance) {
+	public void playAt(int slot, Vector3f position, float maxDistance, float volume) {
 		Entry entry = bySlot.get(slot);
 		if (entry == null) {
 			System.out.println("[EggAlarm] No sound in slot " + slot);
 			return;
 		}
+		stopPlaying();
 		float maxDistSq = maxDistance * maxDistance;
 		for (Player player : Server.getAllPlayers()) {
 			if (!player.isConnected() || !player.isSpawned()) {
@@ -131,7 +133,7 @@ public class EggAlarmSounds {
 			if (player.getPosition().distanceSquared(position) > maxDistSq) {
 				continue;
 			}
-			Sound sound = player.playSound(entry.asset, false, VOLUME, PITCH, MIN_DISTANCE, maxDistance, position);
+			Sound sound = player.playSound(entry.asset, false, volume, PITCH, MIN_DISTANCE, maxDistance, position);
 			if (sound != null) {
 				playing.add(sound);
 			}
@@ -139,8 +141,9 @@ public class EggAlarmSounds {
 	}
 
 	/**
-	 * Creates {@code plugins/EggAlarm/sounds} and copies built-ins into it when the folder
-	 * does not exist yet. An existing folder is left alone, even if empty.
+	 * Creates {@code plugins/EggAlarm/sounds} and copies public built-ins (slots 1..
+	 * {@link #PUBLIC_MAX_SLOT}) into it when the folder does not exist yet. Private
+	 * slots stay jar-only. An existing folder is left alone, even if empty.
 	 */
 	private void ensureSoundsFolder() {
 		Path dest = Path.of(plugin.getPath(), "sounds");
@@ -175,7 +178,11 @@ public class EggAlarmSounds {
 					continue;
 				}
 				String fileName = name.substring("sounds/".length());
-				if (fileName.isEmpty() || fileName.indexOf('/') >= 0 || parse(fileName) == null) {
+				if (fileName.isEmpty() || fileName.indexOf('/') >= 0) {
+					continue;
+				}
+				Entry parsed = parse(fileName);
+				if (parsed == null || parsed.slot > PUBLIC_MAX_SLOT) {
 					continue;
 				}
 				try (var in = jar.getInputStream(jarEntry)) {
@@ -194,7 +201,8 @@ public class EggAlarmSounds {
 		try (var files = Files.list(src)) {
 			files.filter(Files::isRegularFile).forEach(file -> {
 				String fileName = file.getFileName().toString();
-				if (parse(fileName) == null) {
+				Entry parsed = parse(fileName);
+				if (parsed == null || parsed.slot > PUBLIC_MAX_SLOT) {
 					return;
 				}
 				try {
