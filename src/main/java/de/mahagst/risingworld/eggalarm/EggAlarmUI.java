@@ -37,7 +37,7 @@ public class EggAlarmUI {
 	 * Wait before the next radial menu. Opening one inside the previous
 	 * selection callback gets closed by the client as it dismisses the old menu.
 	 */
-	private static final float MENU_SWAP_DELAY = 0.06f;
+	private static final float MENU_SWAP_DELAY = 0.1f;
 
 	private final Plugin plugin;
 	private final EggAlarmService service;
