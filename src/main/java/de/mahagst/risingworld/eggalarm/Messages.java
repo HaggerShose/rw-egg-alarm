@@ -66,8 +66,8 @@ public final class Messages {
 		put(Key.VOLUME_SAVE_FAILED, "Failed to save volume.", "Lautstärke speichern fehlgeschlagen.");
 		put(Key.VOLUME_SET, "Volume: {0}%", "Lautstärke: {0}%");
 		put(Key.NO_DEVICE,
-				"No furnace, grill, oven, or skewer within 10 m.",
-				"Kein Ofen, Grill, Backofen oder Spieß in 10 m.");
+				"No furnace, grill, oven, or skewer within 5 m.",
+				"Kein Ofen, Grill, Backofen oder Spieß in 5 m.");
 		put(Key.LINK_FAILED, "Linking failed.", "Verknüpfen fehlgeschlagen.");
 		put(Key.LINKED,
 				"<color=#88ccff>Linked</color> to {0} at {1}.",

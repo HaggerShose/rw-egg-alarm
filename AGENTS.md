@@ -12,7 +12,7 @@ Javadoc: local under `RisingWorld/Data/SDK`, online at <https://javadoc.rising-w
 Ctrl+O on a persistent rainbow egg (crosshair ray, 5 m)
   unlinked: anyone -> Verknuepfen + Schliessen
   linked: owner uid or admin only -> Trennen + Sound + Range + Lautstaerke + TEST + Schliessen
-Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 10 m
+Verknuepfen: nearest Furnace / Grill / Oven / Skewer within 5 m
   skewer is object name skewer, type Grill
   device not registered: new row, owner = linker, sound 1, range 64, volume 0.8
   device already registered: linker becomes owner; sound, range, volume stay
@@ -40,7 +40,7 @@ Schliessen: no-op; the radial closes because closeOnSelect is true.
 ItemTransformEvent on that device (cancelled / non-meta ignored)
   -> RAM device key -> one-shot 3D sound at the egg (live pose, else stored xyz)
      for every player within max distance. No SQLite. No egg -> silent.
-  -> 5 s wall-clock cooldown per device after a play (stacked items do not stack sounds)
+  -> 8 s wall-clock cooldown per device after a play (stacked items do not stack sounds)
   playAt uses the stored volume (0..1, 5% steps) and stops tracked clips first
 F pickup stays vanilla. No long-press.
 ```
@@ -70,7 +70,6 @@ Follow the workspace root [`AGENTS.md`](../AGENTS.md) (release what you touched;
 - kill pending menu-swap timers; closed flags on UI / service so look and menu callbacks no-op
 - stop tracked `Sound` instances (`stop(true)`) before clearing the catalog (a clip still playing crashes SP unload)
 - clear sound catalog map only (PluginAssetManager frees the assets)
-- egg icon from the item definition is never disposed
 - plugin-loaded radial icons under `/icons/` are only nulled, never disposed
 - RAM link maps cleared; SQLite checkpoint + close
 
@@ -90,7 +89,7 @@ alarm_devices:
   owner_uid
   sound_id
   max_distance
-  volume          -- stored, default 1; playAt still uses 1 until a later control
+  volume          -- 0..1, new devices default 0.8
   created_at
 
 alarm_eggs:
@@ -106,7 +105,7 @@ RAM: `byDevice`, `byEgg`, `byGlobalId`, `deviceEggs` (at most one egg per device
 
 Owner gate: linked egg opens only when `player.getUID()` equals the device `owner_uid` or `player.isAdmin()`. Linking always sets `owner_uid` to the linker. Unlinked eggs stay open to everyone.
 
-Device whitelist: `Objects.Type.Furnace`, `Grill`, `Oven`. The skewer is a `Grill` whose definition name is `skewer` (no separate type). Search radius 10 m from the egg. Link chat names the device and its position (`Skewer` / `Spieß` when the name is `skewer`).
+Device whitelist: `Objects.Type.Furnace`, `Grill`, `Oven`. The skewer is a `Grill` whose definition name is `skewer` (no separate type). Search radius 5 m from the egg. Link chat names the device and its position (`Skewer` / `Spieß` when the name is `skewer`).
 
 ## Sounds
 
@@ -118,7 +117,7 @@ Filename: `NN_DisplayName.ext` or `NN.ext` (ogg/wav/mp3/flac). Slot is the integ
 
 DB stores the slot id, never a file path. Do not stream short effects.
 
-`playAt` plays for every connected, spawned player within the device `max_distance` (32, 64, 128, or 256; default 64). Volume is the stored device level (new devices default `0.8`, steps of 5%), pitch `1`, min distance `1` (full volume nearby; does not scale with hear range). Radial entries use PNGs under `/icons/` (sound slots share `sound-slot-disc.png`). `sound-slot-wave.png`, `sound-slot-note.png`, and `icons/oz/` are unused.
+`playAt` plays for every connected, spawned player within the device `max_distance` (32, 64, 128, or 256; default 64). Volume is the stored device level (new devices default `0.8`, steps of 5%), pitch `1`, min distance `1` (full volume nearby; does not scale with hear range). Radial entries use PNGs under `/icons/` (sound slots share `sound-slot-disc.png`).
 
 ## Phases
 
