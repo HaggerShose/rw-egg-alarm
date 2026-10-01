@@ -1,0 +1,93 @@
+<p><span style="color:#696969;">Hello again,</span></p>
+<p><span style="color:#696969;">from the maker of <a href="https://forum.rising-world.net/thread/15541-respawn-chest/">Respawn Chest</a> comes another small plugin for a problem that should not need a plugin, and yet here we are.</span></p>
+<p><span style="color:#696969;"><br></span></p>
+<p><span style="color:#696969;">You put steaks on the grill, walk off to do something useful, and come back to charcoal. Or you stand next to the furnace like it owes you money.</span></p>
+<p><span style="color:#696969;"><br></span></p>
+<p><span style="color:#696969;"><strong>Egg Alarm</strong> is a rainbow egg that screams when the cooking is done.</span></p>
+<p><span style="color:#696969;">Place the egg, look at it, press Ctrl+O, and link it to a nearby furnace, grill, oven, or skewer. When that station finishes an item, the egg plays a short 3D sound for everyone in range. Players install nothing.</span></p>
+<woltlab-spoiler data-label="Deutsch">
+	<p><span style="color:#696969;">Hallo nochmal,</span></p>
+	<p><span style="color:#696969;">vom Entwickler von <a href="https://forum.rising-world.net/thread/15541-respawn-chest/">Respawn Chest</a> kommt ein weiteres kleines Plugin für ein Problem, das eigentlich kein Plugin brauchen sollte. Und trotzdem stehen wir hier.</span></p>
+	<p><span style="color:#696969;"><br></span></p>
+	<p><span style="color:#696969;">Steaks auf den Grill, kurz weg, und zurück kommt Holzkohle. Oder man steht neben dem Ofen, als hätte der einem Geld schuldig.</span></p>
+	<p><span style="color:#696969;"><br></span></p>
+	<p><span style="color:#696969;"><strong>Egg Alarm</strong> ist ein Regenbogenei, das schreit, wenn das Essen fertig ist.</span></p>
+	<p><span style="color:#696969;">Ei platzieren, anschauen, Strg+O, und mit einem Ofen, Grill, Backofen oder Spieß in der Nähe verknüpfen. Wenn die Station ein Item fertig transformiert, spielt das Ei einen kurzen 3D-Sound für alle in Reichweite. Spieler installieren nichts.</span></p>
+</woltlab-spoiler>
+<p></p>
+<p><span style="color:#696969;"><strong>How it works</strong></span></p>
+<ul>
+	<li><span style="color:#696969;">Place a persistent rainbow egg</span></li>
+	<li><span style="color:#696969;">Look at it (within 5 m) and press <strong>Ctrl+O</strong></span></li>
+	<li><span style="color:#696969;">Choose <strong>Link</strong> -- nearest furnace, grill, oven, or skewer within 10 m</span></li>
+	<li><span style="color:#696969;">Optional: <strong>Sound</strong>, <strong>Range</strong> (32 / 64 / 128 m, default 64), <strong>TEST</strong></span></li>
+	<li><span style="color:#696969;">Cook something on that station</span></li>
+	<li><span style="color:#696969;">The egg plays the sound once</span>
+	<p><br></p></li>
+</ul>
+<p><span style="color:#696969;">Pickup with F stays vanilla. There is no long-press.</span></p>
+<p><span style="color:#696969;">An unlinked egg is open to everyone. A linked egg opens only for the player who linked it, or an admin.</span></p>
+<p><span style="color:#696969;">If you pick the egg up and place it again, use <strong>Relink</strong> on the new egg near the same station. Device, owner, sound, and range stay.</span></p>
+<p><span style="color:#696969;">A stack of steaks finishing together does not stack sounds. After a play, that station is quiet for 5 seconds.</span></p>
+<p><span style="color:#696969;">Menus and chat follow the player's game language (English by default, German if it starts with <em>de</em>).</span></p>
+<woltlab-spoiler data-label="Deutsch">
+	<p><span style="color:#696969;"><strong>So funktioniert es</strong></span></p>
+	<ul>
+		<li><span style="color:#696969;">Ein dauerhaftes Regenbogenei platzieren</span></li>
+		<li><span style="color:#696969;">Anschauen (bis 5 m) und <strong>Strg+O</strong> drücken</span></li>
+		<li><span style="color:#696969;"><strong>Verknüpfen</strong> wählen -- nächster Ofen, Grill, Backofen oder Spieß in 10 m</span></li>
+		<li><span style="color:#696969;">Optional: <strong>Sound</strong>, <strong>Reichweite</strong> (32 / 64 / 128 m, Standard 64), <strong>TEST</strong></span></li>
+		<li><span style="color:#696969;">Auf der Station etwas fertig kochen oder schmelzen</span></li>
+		<li><span style="color:#696969;">Das Ei spielt den Sound einmal</span>
+		<p><br></p></li>
+	</ul>
+	<p><span style="color:#696969;">Aufheben mit F bleibt vanilla. Kein langes Drücken.</span></p>
+	<p><span style="color:#696969;">Ein unverknüpftes Ei kann jeder öffnen. Ein verknüpftes nur der Spieler, der es verknüpft hat, oder ein Admin.</span></p>
+	<p><span style="color:#696969;">Ei aufgenommen und neu platziert: am neuen Ei <strong>Neu verknüpfen</strong>, in der Nähe derselben Station. Gerät, Besitzer, Sound und Reichweite bleiben.</span></p>
+	<p><span style="color:#696969;">Ein Stapel Steaks, der gleichzeitig fertig wird, stapelt keine Sounds. Nach einem Ton ist die Station 5 Sekunden still.</span></p>
+	<p><span style="color:#696969;">Menü und Chat folgen der Spielsprache (Englisch standard, Deutsch wenn sie mit <em>de</em> beginnt).</span></p>
+</woltlab-spoiler>
+<p></p>
+<p><span style="color:#696969;"><strong>Sounds</strong></span></p>
+<p><span style="color:#696969;">A few clips ship with the plugin. On first start it creates [tt]Plugins/EggAlarm/sounds/[/tt] and copies them there, if that folder does not exist yet.</span></p>
+<p><span style="color:#696969;">Add or replace clips in that folder. Name them [tt]01_Alarm.ogg[/tt] through [tt]07_Name.ogg[/tt] (wav, mp3, and flac also work). Short ogg files are the sensible choice. A file without a name, such as [tt]01.ogg[/tt], shows up as <em>Sound 1</em>.</span></p>
+<p><span style="color:#696969;">Full volume is within 5 m. Range only changes how far away you can still hear it.</span></p>
+<woltlab-spoiler data-label="Deutsch">
+	<p><span style="color:#696969;"><strong>Sounds</strong></span></p>
+	<p><span style="color:#696969;">Ein paar Clips liegen schon im Plugin. Beim ersten Start legt es [tt]Plugins/EggAlarm/sounds/[/tt] an und kopiert sie dorthin, falls der Ordner noch nicht existiert.</span></p>
+	<p><span style="color:#696969;">Eigene Clips in den Ordner legen oder ersetzen. Namen wie [tt]01_Alarm.ogg[/tt] bis [tt]07_Name.ogg[/tt] (auch wav, mp3, flac). Kurze ogg-Dateien sind die vernünftige Wahl. Eine Datei ohne Namen, etwa [tt]01.ogg[/tt], heißt im Menü <em>Sound 1</em>.</span></p>
+	<p><span style="color:#696969;">Volle Lautstärke gilt bis 5 m. Die Reichweite ändert nur, wie weit man den Ton noch hört.</span></p>
+</woltlab-spoiler>
+<p></p>
+<p><span style="color:#696969;"><strong>Download / Installation</strong></span></p>
+<p><span style="color:#696969;">Latest release:</span></p>
+<p><span style="color:#696969;"><a href="https://github.com/HaggerShose/rw-egg-alarm/releases/latest">Egg Alarm - Latest Release</a></span></p>
+<p><span style="color:#696969;">Place the JAR here:</span></p>
+<p><span style="color:#696969;">[tt]./plugins/EggAlarm/EggAlarm.jar[/tt]</span></p>
+<p><span style="color:#696969;">Restart the server afterwards.</span></p>
+<p><span style="color:#696969;">Built against Rising World Plugin API <strong>0.9.3.2</strong>.</span></p>
+<p><span style="color:#696969;">License: <strong>MIT</strong></span></p>
+<p><span style="color:#696969;">Source code:</span></p>
+<p><span style="color:#696969;"><a href="https://github.com/HaggerShose/rw-egg-alarm">GitHub - rw-egg-alarm</a></span></p>
+<p><span style="color:#696969;"><strong>Bugs / Feedback</strong></span></p>
+<p><span style="color:#696969;">If the egg stays quiet when the food is clearly done, post it here.</span></p>
+<p><span style="color:#696969;">Have fun.</span></p>
+<p><span style="color:#696969;">The grill can finish without you staring at it.</span></p>
+<p><span style="color:#696969;">Probably.</span></p>
+<woltlab-spoiler data-label="Deutsch">
+	<p><span style="color:#696969;"><strong>Download / Installation</strong></span></p>
+	<p><span style="color:#696969;">Aktuelles Release:</span></p>
+	<p><span style="color:#696969;"><a href="https://github.com/HaggerShose/rw-egg-alarm/releases/latest">Egg Alarm - Latest Release</a></span></p>
+	<p><span style="color:#696969;">Die JAR kommt nach:</span></p>
+	<p><span style="color:#696969;">[tt]./plugins/EggAlarm/EggAlarm.jar[/tt]</span></p>
+	<p><span style="color:#696969;">Danach den Server neu starten.</span></p>
+	<p><span style="color:#696969;">Entwickelt gegen die Rising World Plugin API <strong>0.9.3.2</strong>.</span></p>
+	<p><span style="color:#696969;">Lizenz: <strong>MIT</strong></span></p>
+	<p><span style="color:#696969;">Quellcode:</span></p>
+	<p><span style="color:#696969;"><a href="https://github.com/HaggerShose/rw-egg-alarm">GitHub - rw-egg-alarm</a></span></p>
+	<p><span style="color:#696969;"><strong>Bugs / Feedback</strong></span></p>
+	<p><span style="color:#696969;">Wenn das Ei still bleibt, obwohl das Essen eindeutig fertig ist, gerne hier melden.</span></p>
+	<p><span style="color:#696969;">Viel Spaß damit.</span></p>
+	<p><span style="color:#696969;">Der Grill darf jetzt fertig werden, ohne dass jemand davor Wache steht.</span></p>
+	<p><span style="color:#696969;">Vermutlich.</span></p>
+</woltlab-spoiler>

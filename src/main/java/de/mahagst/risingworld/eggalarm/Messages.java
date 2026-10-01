@@ -19,7 +19,6 @@ public final class Messages {
 		MENU_RANGE,
 		MENU_TEST,
 		MENU_LINK,
-		MENU_RELINK,
 		MENU_BACK,
 		SOUND_SAVE_FAILED,
 		SOUND_SET,
@@ -28,11 +27,6 @@ public final class Messages {
 		NO_DEVICE,
 		LINK_FAILED,
 		LINKED,
-		ALREADY_LINKED,
-		NO_ORPHAN,
-		RELINK_FAILED,
-		RELINKED,
-		RELINKED_PLAIN,
 		UNLINK_FAILED,
 		UNLINKED
 	}
@@ -46,7 +40,6 @@ public final class Messages {
 		put(Key.MENU_RANGE, "Range", "Reichweite");
 		put(Key.MENU_TEST, "TEST", "TEST");
 		put(Key.MENU_LINK, "Link", "Verknüpfen");
-		put(Key.MENU_RELINK, "Relink", "Neu verknüpfen");
 		put(Key.MENU_BACK, "Back", "Zurück");
 		put(Key.SOUND_SAVE_FAILED, "Failed to save sound.", "Sound speichern fehlgeschlagen.");
 		put(Key.SOUND_SET, "Sound: {0}", "Sound: {0}");
@@ -59,13 +52,6 @@ public final class Messages {
 		put(Key.LINKED,
 				"<color=#88ccff>Linked</color> to {0} at {1}.",
 				"<color=#88ccff>Verknüpft</color> mit {0} bei {1}.");
-		put(Key.ALREADY_LINKED, "Egg is already linked.", "Ei ist bereits verknüpft.");
-		put(Key.NO_ORPHAN, "No orphaned link within 10 m.", "Kein verwaister Link in 10 m.");
-		put(Key.RELINK_FAILED, "Relink failed.", "Neu verknüpfen fehlgeschlagen.");
-		put(Key.RELINKED,
-				"<color=#88ccff>Relinked</color> to {0} at {1}.",
-				"<color=#88ccff>Neu verknüpft</color> mit {0} bei {1}.");
-		put(Key.RELINKED_PLAIN, "Relinked.", "Neu verknüpft.");
 		put(Key.UNLINK_FAILED, "Unlink failed.", "Trennen fehlgeschlagen.");
 		put(Key.UNLINKED, "Unlinked.", "Getrennt.");
 	}
@@ -93,12 +79,11 @@ public final class Messages {
 	}
 
 	/**
-	 * Success line for link / relink: device label plus world position.
+	 * Success line for link: device label plus world position.
 	 * Skewer is a {@link Objects.Type#Grill} whose definition name is {@code skewer}.
 	 */
-	public static String linkedTo(Player player, boolean relink, Objects.ObjectDefinition definition, Vector3f position) {
-		Key key = relink ? Key.RELINKED : Key.LINKED;
-		return format(player, key, deviceLabel(player, definition), coords(position));
+	public static String linkedTo(Player player, Objects.ObjectDefinition definition, Vector3f position) {
+		return format(player, Key.LINKED, deviceLabel(player, definition), coords(position));
 	}
 
 	private static String deviceLabel(Player player, Objects.ObjectDefinition definition) {

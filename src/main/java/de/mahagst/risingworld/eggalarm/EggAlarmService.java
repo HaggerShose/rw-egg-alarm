@@ -19,12 +19,16 @@ import net.risingworld.api.utils.Vector3f;
 
 /**
  * Look-up, egg links, radial menu gate, sound pick, and the transform alarm.
- * Hot path uses RAM maps; SQLite only on enable load and on link / unlink / relink / sound / range change.
+ * Hot path uses RAM maps; SQLite only on enable load and on link / unlink / sound / range change.
+ * <p>
+ * A device keeps owner, sound, range, and volume. Linking attaches this egg to the
+ * nearest device and drops any previous egg on that device. Settings stay when the
+ * device is already registered.
  */
 public class EggAlarmService {
 	/** Item variant of the rainbow egg (definitions.db {@code items_variants}). */
 	private static final int RAINBOW_VARIANT = 3;
-	/** Default sound slot stored on a new link. */
+	/** Default sound slot stored on a new device. */
 	private static final int DEFAULT_SOUND_ID = 1;
 	/** Default hear radius in meters. Allowed values: 32, 64, 128. */
 	private static final int DEFAULT_MAX_DISTANCE = 64;
@@ -51,9 +55,11 @@ public class EggAlarmService {
 	/** Set on disable so in-flight look and menu callbacks return. */
 	private boolean closed;
 
-	private final Map<EggKey, EggLink> byEgg = new HashMap<>();
-	private final Map<DeviceKey, EggLink> byDevice = new HashMap<>();
-	private final Map<Long, EggLink> byGlobalId = new HashMap<>();
+	private final Map<DeviceKey, AlarmDevice> byDevice = new HashMap<>();
+	private final Map<EggKey, AlarmEgg> byEgg = new HashMap<>();
+	private final Map<Long, AlarmEgg> byGlobalId = new HashMap<>();
+	/** At most one egg per device. Absent when the device has no egg. */
+	private final Map<DeviceKey, AlarmEgg> deviceEggs = new HashMap<>();
 	/** Last alarm wall-clock ms per device; transform path only. */
 	private final Map<DeviceKey, Long> lastAlarmAt = new HashMap<>();
 
@@ -72,27 +78,32 @@ public class EggAlarmService {
 	 */
 	void close() {
 		closed = true;
-		byEgg.clear();
 		byDevice.clear();
+		byEgg.clear();
 		byGlobalId.clear();
+		deviceEggs.clear();
 		lastAlarmAt.clear();
 		ui = null;
 	}
 
 	/**
-	 * Load every row into RAM. Binds a session egg id when the egg is already
-	 * loaded; missing eggs and devices stay. No deletes on enable.
+	 * Load every device, then every egg, into RAM. Binds a session egg id when the
+	 * egg is already loaded; missing eggs stay. No deletes on enable.
 	 *
-	 * @return false if the query itself failed
+	 * @return false if a query itself failed
 	 */
 	public boolean loadLinks() {
-		var rows = repository.findAll();
-		if (rows == null) {
+		var devices = repository.findDevices();
+		var eggs = repository.findEggs();
+		if (devices == null || eggs == null) {
 			return false;
 		}
-		for (EggLink link : rows) {
-			rebindEgg(link);
-			remember(link);
+		for (AlarmDevice device : devices) {
+			byDevice.put(deviceKey(device), device);
+		}
+		for (AlarmEgg egg : eggs) {
+			rebindEgg(egg);
+			rememberEgg(egg);
 		}
 		return true;
 	}
@@ -102,6 +113,7 @@ public class EggAlarmService {
 	 * Live pose when the egg is loaded, otherwise the stored position.
 	 * Per-device cooldown: after a play, further transforms are silent for
 	 * {@link #ALARM_COOLDOWN_MS} so stacked items do not stack sounds.
+	 * Devices without an egg stay silent. Stored volume is not applied yet.
 	 *
 	 * @param objectId device global id (same as {@code ObjectElement.getGlobalID()})
 	 * @param cx device chunk x
@@ -113,8 +125,9 @@ public class EggAlarmService {
 			return;
 		}
 		DeviceKey key = new DeviceKey(objectId, cx, cy, cz);
-		EggLink link = byDevice.get(key);
-		if (link == null) {
+		AlarmDevice device = byDevice.get(key);
+		AlarmEgg egg = deviceEggs.get(key);
+		if (device == null || egg == null) {
 			return;
 		}
 		long now = System.currentTimeMillis();
@@ -123,13 +136,13 @@ public class EggAlarmService {
 			return;
 		}
 		Vector3f position;
-		if (link.eggGlobalId != null) {
-			WorldItem egg = World.getItem(link.eggGlobalId);
-			position = egg != null ? egg.getPosition() : new Vector3f(link.x, link.y, link.z);
+		if (egg.eggGlobalId != null) {
+			WorldItem live = World.getItem(egg.eggGlobalId);
+			position = live != null ? live.getPosition() : new Vector3f(egg.x, egg.y, egg.z);
 		} else {
-			position = new Vector3f(link.x, link.y, link.z);
+			position = new Vector3f(egg.x, egg.y, egg.z);
 		}
-		sounds.playAt(link.soundId, position, link.maxDistance);
+		sounds.playAt(device.soundId, position, device.maxDistance);
 		lastAlarmAt.put(key, now);
 	}
 
@@ -160,11 +173,12 @@ public class EggAlarmService {
 			if (item == null || ui == null) {
 				return;
 			}
-			EggLink link = findLink(item);
-			if (link != null && !canEdit(player, link)) {
+			AlarmEgg egg = findEgg(item);
+			AlarmDevice device = deviceOf(egg);
+			if (device != null && !canEdit(player, device)) {
 				return;
 			}
-			ui.showEggMenu(player, item, link != null);
+			ui.showEggMenu(player, item, device != null);
 		}));
 	}
 
@@ -180,8 +194,9 @@ public class EggAlarmService {
 		if (!isTargetEgg(egg)) {
 			return;
 		}
-		EggLink link = findLink(egg);
-		if (link != null && !canEdit(player, link)) {
+		AlarmEgg link = findEgg(egg);
+		AlarmDevice device = deviceOf(link);
+		if (device != null && !canEdit(player, device)) {
 			return;
 		}
 		switch (actions[selection]) {
@@ -191,20 +206,19 @@ public class EggAlarmService {
 					unlinkEgg(player, link);
 				}
 			}
-			case RELINK -> relinkEgg(player, egg);
 			case SOUNDS -> {
-				if (link != null && ui != null) {
-					ui.showSoundMenu(player, egg, link.soundId);
+				if (device != null && ui != null) {
+					ui.showSoundMenu(player, egg, device.soundId);
 				}
 			}
 			case RANGE -> {
-				if (link != null && ui != null) {
-					ui.showRangeMenu(player, egg, link.maxDistance);
+				if (device != null && ui != null) {
+					ui.showRangeMenu(player, egg, device.maxDistance);
 				}
 			}
 			case TEST -> {
-				if (link != null) {
-					sounds.playAt(link.soundId, egg.getPosition(), link.maxDistance);
+				if (device != null) {
+					sounds.playAt(device.soundId, egg.getPosition(), device.maxDistance);
 				}
 			}
 		}
@@ -216,7 +230,7 @@ public class EggAlarmService {
 	}
 
 	/**
-	 * Persist {@code slot} on the linked egg and play it once as a preview.
+	 * Persist {@code slot} on the device and play it once as a preview.
 	 * Same slot skips the write and still previews.
 	 */
 	void setSound(Player player, long eggId, int slot) {
@@ -227,8 +241,8 @@ public class EggAlarmService {
 		if (!isTargetEgg(egg)) {
 			return;
 		}
-		EggLink link = findLink(egg);
-		if (link == null || !canEdit(player, link)) {
+		AlarmDevice device = deviceOf(findEgg(egg));
+		if (device == null || !canEdit(player, device)) {
 			return;
 		}
 		if (!sounds.canPickSlot(player, slot)) {
@@ -238,42 +252,37 @@ public class EggAlarmService {
 		if (name == null) {
 			return;
 		}
-		if (link.soundId != slot) {
-			EggLink next = new EggLink(
-					link.creationDate,
-					link.x,
-					link.y,
-					link.z,
-					link.variant,
-					link.deviceObjectId,
-					link.deviceCx,
-					link.deviceCy,
-					link.deviceCz,
-					link.ownerUid,
+		if (device.soundId != slot) {
+			AlarmDevice next = new AlarmDevice(
+					device.objectId,
+					device.cx,
+					device.cy,
+					device.cz,
+					device.ownerUid,
 					slot,
-					link.maxDistance,
-					link.createdAt);
-			next.eggGlobalId = link.eggGlobalId != null ? link.eggGlobalId : egg.getGlobalID();
-			if (!repository.upsert(next)) {
+					device.maxDistance,
+					device.volume,
+					device.createdAt);
+			if (!repository.updateSettings(next)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.SOUND_SAVE_FAILED));
 				return;
 			}
-			forget(link);
-			remember(next);
+			byDevice.put(deviceKey(next), next);
+			device = next;
 		}
-		sounds.playAt(slot, egg.getPosition(), link.maxDistance);
+		sounds.playAt(slot, egg.getPosition(), device.maxDistance);
 		player.sendTextMessage(Messages.format(player, Messages.Key.SOUND_SET, name));
 	}
 
 	/**
-	 * Persist hear radius on the linked egg and play the current sound once.
+	 * Persist hear radius on the device and play the current sound once.
 	 * Same radius skips the write and still previews.
 	 */
 	void setRange(Player player, long eggId, int meters) {
 		if (closed) {
 			return;
 		}
-		int distance = EggLink.normalizeDistance(meters);
+		int distance = AlarmDevice.normalizeDistance(meters);
 		if (distance != meters) {
 			return;
 		}
@@ -281,145 +290,125 @@ public class EggAlarmService {
 		if (!isTargetEgg(egg)) {
 			return;
 		}
-		EggLink link = findLink(egg);
-		if (link == null || !canEdit(player, link)) {
+		AlarmDevice device = deviceOf(findEgg(egg));
+		if (device == null || !canEdit(player, device)) {
 			return;
 		}
-		if (link.maxDistance != distance) {
-			EggLink next = new EggLink(
-					link.creationDate,
-					link.x,
-					link.y,
-					link.z,
-					link.variant,
-					link.deviceObjectId,
-					link.deviceCx,
-					link.deviceCy,
-					link.deviceCz,
-					link.ownerUid,
-					link.soundId,
+		if (device.maxDistance != distance) {
+			AlarmDevice next = new AlarmDevice(
+					device.objectId,
+					device.cx,
+					device.cy,
+					device.cz,
+					device.ownerUid,
+					device.soundId,
 					distance,
-					link.createdAt);
-			next.eggGlobalId = link.eggGlobalId != null ? link.eggGlobalId : egg.getGlobalID();
-			if (!repository.upsert(next)) {
+					device.volume,
+					device.createdAt);
+			if (!repository.updateSettings(next)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.RANGE_SAVE_FAILED));
 				return;
 			}
-			forget(link);
-			remember(next);
+			byDevice.put(deviceKey(next), next);
+			device = next;
 		}
-		sounds.playAt(link.soundId, egg.getPosition(), distance);
+		sounds.playAt(device.soundId, egg.getPosition(), distance);
 		player.sendTextMessage(Messages.format(player, Messages.Key.RANGE_SET, Integer.toString(distance)));
 	}
 
+	/**
+	 * Attaches this egg to the nearest device within {@link #LINK_RADIUS}.
+	 * A new device stores defaults. An existing device keeps owner, sound, range,
+	 * and volume, including when another player owns it. Any other egg on that
+	 * device is removed. This egg is detached from a different device first.
+	 */
 	private void linkEgg(Player player, WorldItem egg) {
-		ObjectElement device = nearestDevice(egg.getPosition());
-		if (device == null) {
+		ObjectElement deviceObject = nearestDevice(egg.getPosition());
+		if (deviceObject == null) {
 			player.sendTextMessage(Messages.get(player, Messages.Key.NO_DEVICE));
 			return;
 		}
-		EggLink existing = findLink(egg);
-		DeviceKey deviceKey = deviceKey(device);
-		EggLink other = byDevice.get(deviceKey);
-		if (other != null && !sameEgg(other, egg)) {
-			if (!repository.delete(other)) {
+		DeviceKey key = deviceKey(deviceObject);
+		AlarmDevice device = byDevice.get(key);
+		if (device == null) {
+			device = new AlarmDevice(
+					deviceObject.getGlobalID(),
+					deviceObject.getChunkPositionX(),
+					deviceObject.getChunkPositionY(),
+					deviceObject.getChunkPositionZ(),
+					player.getUID(),
+					DEFAULT_SOUND_ID,
+					DEFAULT_MAX_DISTANCE,
+					AlarmDevice.DEFAULT_VOLUME,
+					System.currentTimeMillis());
+			if (!repository.insertDevice(device)) {
 				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
 				return;
 			}
-			forget(other);
+			byDevice.put(key, device);
 		}
 		Vector3f pos = egg.getPosition();
-		long now = System.currentTimeMillis();
-		EggLink next = new EggLink(
+		AlarmEgg previous = findEgg(egg);
+		if (previous != null && !sameStoredPose(previous, egg)) {
+			if (!repository.deleteEgg(previous)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
+				return;
+			}
+			forgetEgg(previous);
+		}
+		AlarmEgg occupant = deviceEggs.get(key);
+		if (occupant != null && !sameStoredPose(occupant, egg)) {
+			if (!repository.deleteEgg(occupant)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
+				return;
+			}
+			forgetEgg(occupant);
+		}
+		AlarmEgg next = new AlarmEgg(
 				egg.getCreationDate(),
 				pos.x,
 				pos.y,
 				pos.z,
 				egg.getVariant(),
-				device.getGlobalID(),
-				device.getChunkPositionX(),
-				device.getChunkPositionY(),
-				device.getChunkPositionZ(),
-				existing != null ? existing.ownerUid : player.getUID(),
-				existing != null ? existing.soundId : DEFAULT_SOUND_ID,
-				existing != null ? existing.maxDistance : DEFAULT_MAX_DISTANCE,
-				existing != null ? existing.createdAt : now);
+				device.objectId,
+				device.cx,
+				device.cy,
+				device.cz);
 		next.eggGlobalId = egg.getGlobalID();
-		if (!repository.upsert(next)) {
+		if (!repository.upsertEgg(next)) {
 			player.sendTextMessage(Messages.get(player, Messages.Key.LINK_FAILED));
 			return;
 		}
-		if (existing != null) {
-			forget(existing);
-		}
-		remember(next);
-		player.sendTextMessage(Messages.linkedTo(player, false, device.getDefinition(), device.getWorldPosition()));
+		rememberEgg(next);
+		player.sendTextMessage(Messages.linkedTo(player, deviceObject.getDefinition(), deviceObject.getWorldPosition()));
 	}
 
-	/**
-	 * Moves an orphaned device link (egg missing, device within 10 m) onto this egg.
-	 * Keeps owner, sound and device; updates egg identity.
-	 */
-	private void relinkEgg(Player player, WorldItem egg) {
-		if (findLink(egg) != null) {
-			player.sendTextMessage(Messages.get(player, Messages.Key.ALREADY_LINKED));
+	/** Drops the device and, via cascade, its egg. World objects stay. */
+	private void unlinkEgg(Player player, AlarmEgg egg) {
+		AlarmDevice device = byDevice.get(deviceKey(egg));
+		if (device == null) {
+			if (!repository.deleteEgg(egg)) {
+				player.sendTextMessage(Messages.get(player, Messages.Key.UNLINK_FAILED));
+				return;
+			}
+			forgetEgg(egg);
+			player.sendTextMessage(Messages.get(player, Messages.Key.UNLINKED));
 			return;
 		}
-		EggLink orphan = nearestOrphan(player, egg.getPosition());
-		if (orphan == null) {
-			player.sendTextMessage(Messages.get(player, Messages.Key.NO_ORPHAN));
-			return;
-		}
-		Vector3f pos = egg.getPosition();
-		EggLink next = new EggLink(
-				egg.getCreationDate(),
-				pos.x,
-				pos.y,
-				pos.z,
-				egg.getVariant(),
-				orphan.deviceObjectId,
-				orphan.deviceCx,
-				orphan.deviceCy,
-				orphan.deviceCz,
-				orphan.ownerUid,
-				orphan.soundId,
-				orphan.maxDistance,
-				orphan.createdAt);
-		next.eggGlobalId = egg.getGlobalID();
-		if (!repository.delete(orphan)) {
-			player.sendTextMessage(Messages.get(player, Messages.Key.RELINK_FAILED));
-			return;
-		}
-		forget(orphan);
-		if (!repository.upsert(next)) {
-			player.sendTextMessage(Messages.get(player, Messages.Key.RELINK_FAILED));
-			return;
-		}
-		remember(next);
-		ObjectElement device = World.getObject(
-				orphan.deviceObjectId, orphan.deviceCx, orphan.deviceCy, orphan.deviceCz);
-		if (isDevice(device)) {
-			player.sendTextMessage(Messages.linkedTo(player, true, device.getDefinition(), device.getWorldPosition()));
-		} else {
-			player.sendTextMessage(Messages.get(player, Messages.Key.RELINKED_PLAIN));
-		}
-	}
-
-	private void unlinkEgg(Player player, EggLink link) {
-		if (!repository.delete(link)) {
+		if (!repository.deleteDevice(device)) {
 			player.sendTextMessage(Messages.get(player, Messages.Key.UNLINK_FAILED));
 			return;
 		}
-		forget(link);
+		forgetDevice(device);
 		player.sendTextMessage(Messages.get(player, Messages.Key.UNLINKED));
 	}
 
-	private boolean canEdit(Player player, EggLink link) {
-		return player.isAdmin() || player.getUID().equals(link.ownerUid);
+	private boolean canEdit(Player player, AlarmDevice device) {
+		return player.isAdmin() || player.getUID().equals(device.ownerUid);
 	}
 
-	private EggLink findLink(WorldItem egg) {
-		EggLink link = byGlobalId.get(egg.getGlobalID());
+	private AlarmEgg findEgg(WorldItem egg) {
+		AlarmEgg link = byGlobalId.get(egg.getGlobalID());
 		if (link == null) {
 			link = byEgg.get(eggKey(egg));
 		}
@@ -430,24 +419,8 @@ public class EggAlarmService {
 		return link;
 	}
 
-	/**
-	 * Nearest owned orphan within {@link #LINK_RADIUS}: linked device nearby, egg missing at the stored pose.
-	 */
-	private EggLink nearestOrphan(Player player, Vector3f origin) {
-		EggLink best = null;
-		float bestSq = LINK_RADIUS * LINK_RADIUS;
-		for (ObjectElement device : devicesInRange(origin)) {
-			EggLink link = byDevice.get(deviceKey(device));
-			if (link == null || !canEdit(player, link) || !isOrphan(link)) {
-				continue;
-			}
-			float distSq = device.getWorldPosition().distanceSquared(origin);
-			if (distSq <= bestSq) {
-				bestSq = distSq;
-				best = link;
-			}
-		}
-		return best;
+	private AlarmDevice deviceOf(AlarmEgg egg) {
+		return egg == null ? null : byDevice.get(deviceKey(egg));
 	}
 
 	private ObjectElement nearestDevice(Vector3f origin) {
@@ -500,28 +473,23 @@ public class EggAlarmService {
 				|| type == Objects.Type.Oven;
 	}
 
-	/** True when no matching egg remains at the stored pose. Used only on relink click. */
-	private boolean isOrphan(EggLink link) {
-		return findEggAt(link) == null;
-	}
-
 	/** Binds the session item id when the egg is already loaded nearby. */
-	private void rebindEgg(EggLink link) {
-		WorldItem item = findEggAt(link);
+	private void rebindEgg(AlarmEgg egg) {
+		WorldItem item = findEggAt(egg);
 		if (item != null) {
-			link.eggGlobalId = item.getGlobalID();
+			egg.eggGlobalId = item.getGlobalID();
 		}
 	}
 
-	private WorldItem findEggAt(EggLink link) {
-		Vector3f pos = new Vector3f(link.x, link.y, link.z);
+	private WorldItem findEggAt(AlarmEgg egg) {
+		Vector3f pos = new Vector3f(egg.x, egg.y, egg.z);
 		WorldItem[] items = World.getAllItemsInRange(pos, 1f);
 		if (items == null) {
 			return null;
 		}
 		float maxSq = POSITION_EPSILON * POSITION_EPSILON;
 		for (WorldItem item : items) {
-			if (!isTargetEgg(item) || item.getCreationDate() != link.creationDate) {
+			if (!isTargetEgg(item) || item.getCreationDate() != egg.creationDate) {
 				continue;
 			}
 			if (item.getPosition().distanceSquared(pos) > maxSq) {
@@ -532,26 +500,42 @@ public class EggAlarmService {
 		return null;
 	}
 
-	private void remember(EggLink link) {
-		byEgg.put(eggKey(link), link);
-		byDevice.put(deviceKey(link), link);
-		if (link.eggGlobalId != null) {
-			byGlobalId.put(link.eggGlobalId, link);
+	private void rememberEgg(AlarmEgg egg) {
+		byEgg.put(eggKey(egg), egg);
+		deviceEggs.put(deviceKey(egg), egg);
+		if (egg.eggGlobalId != null) {
+			byGlobalId.put(egg.eggGlobalId, egg);
 		}
 	}
 
-	private void forget(EggLink link) {
-		DeviceKey key = deviceKey(link);
-		byEgg.remove(eggKey(link));
+	private void forgetEgg(AlarmEgg egg) {
+		byEgg.remove(eggKey(egg));
+		deviceEggs.remove(deviceKey(egg), egg);
+		if (egg.eggGlobalId != null) {
+			byGlobalId.remove(egg.eggGlobalId, egg);
+		}
+	}
+
+	private void forgetDevice(AlarmDevice device) {
+		DeviceKey key = deviceKey(device);
 		byDevice.remove(key);
 		lastAlarmAt.remove(key);
-		if (link.eggGlobalId != null) {
-			byGlobalId.remove(link.eggGlobalId, link);
+		AlarmEgg egg = deviceEggs.remove(key);
+		if (egg != null) {
+			byEgg.remove(eggKey(egg));
+			if (egg.eggGlobalId != null) {
+				byGlobalId.remove(egg.eggGlobalId, egg);
+			}
 		}
 	}
 
-	private static boolean sameEgg(EggLink link, WorldItem egg) {
-		return link.creationDate == egg.getCreationDate() && eggKey(link).equals(eggKey(egg));
+	/** True when the stored egg primary key is exactly this item. */
+	private static boolean sameStoredPose(AlarmEgg egg, WorldItem item) {
+		Vector3f pos = item.getPosition();
+		return egg.creationDate == item.getCreationDate()
+				&& egg.x == pos.x
+				&& egg.y == pos.y
+				&& egg.z == pos.z;
 	}
 
 	private static EggKey eggKey(WorldItem egg) {
@@ -559,8 +543,8 @@ public class EggAlarmService {
 		return new EggKey(egg.getCreationDate(), q(pos.x), q(pos.y), q(pos.z), egg.getVariant());
 	}
 
-	private static EggKey eggKey(EggLink link) {
-		return new EggKey(link.creationDate, q(link.x), q(link.y), q(link.z), link.variant);
+	private static EggKey eggKey(AlarmEgg egg) {
+		return new EggKey(egg.creationDate, q(egg.x), q(egg.y), q(egg.z), egg.variant);
 	}
 
 	private static DeviceKey deviceKey(ObjectElement object) {
@@ -571,8 +555,12 @@ public class EggAlarmService {
 				object.getChunkPositionZ());
 	}
 
-	private static DeviceKey deviceKey(EggLink link) {
-		return new DeviceKey(link.deviceObjectId, link.deviceCx, link.deviceCy, link.deviceCz);
+	private static DeviceKey deviceKey(AlarmDevice device) {
+		return new DeviceKey(device.objectId, device.cx, device.cy, device.cz);
+	}
+
+	private static DeviceKey deviceKey(AlarmEgg egg) {
+		return new DeviceKey(egg.deviceObjectId, egg.deviceCx, egg.deviceCy, egg.deviceCz);
 	}
 
 	private static int q(float value) {
@@ -590,7 +578,6 @@ public class EggAlarmService {
 	enum MenuAction {
 		LINK,
 		UNLINK,
-		RELINK,
 		SOUNDS,
 		RANGE,
 		TEST

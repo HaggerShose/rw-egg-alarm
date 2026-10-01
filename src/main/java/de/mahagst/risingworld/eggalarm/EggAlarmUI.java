@@ -76,7 +76,7 @@ public class EggAlarmUI {
 
 	/**
 	 * Linked (owner / admin): Trennen, Sound, Range, TEST.
-	 * Unlinked: Verknüpfen and Neu verknüpfen (orphan check happens on click).
+	 * Unlinked: Verknuepfen. The nearest device keeps its settings when it is already registered.
 	 */
 	public void showEggMenu(Player player, WorldItem egg, boolean linked) {
 		if (closed || eggIcon == null) {
@@ -102,9 +102,6 @@ public class EggAlarmUI {
 		} else {
 			actions.add(EggAlarmService.MenuAction.LINK);
 			labels.add(Messages.get(player, Messages.Key.MENU_LINK));
-			icons.add(eggIcon);
-			actions.add(EggAlarmService.MenuAction.RELINK);
-			labels.add(Messages.get(player, Messages.Key.MENU_RELINK));
 			icons.add(eggIcon);
 		}
 
